@@ -31,8 +31,8 @@ lxml==5.1.0
 python-libnmap==0.7.3
 pandas==2.1.4
 
-# SARIF Support
-pysarif==1.0.0
+# SARIF Support (corrected version)
+sarif-om==1.0.4
 
 # OpenAI (Phase 3)
 openai==1.10.0
@@ -51,21 +51,16 @@ celery==5.3.4
 # Logging and Monitoring
 structlog==24.1.0
 
-# CORS Middleware
-fastapi-cors==0.0.6
-
-# Testing (Development)
+# Testing (included for development)
 pytest==7.4.3
 pytest-asyncio==0.23.3
 pytest-cov==4.1.0
-httpx==0.26.0
 faker==22.4.0
 
-# Code Quality (Development)
+# Code Quality
 black==24.1.0
 ruff==0.1.14
 mypy==1.8.0
-pylint==3.0.3
 
 # Type Stubs
 types-requests==2.31.0.20240125

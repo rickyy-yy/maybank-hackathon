@@ -4,7 +4,7 @@ services:
     container_name: vulnforge-db
     environment:
       POSTGRES_USER: vulnforge
-      POSTGRES_PASSWORD: dev_password_change_in_prod
+      POSTGRES_PASSWORD: password
       POSTGRES_DB: vulnforge
     ports:
       - "5432:5432"
