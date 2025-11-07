@@ -1,0 +1,57 @@
+[
+  {
+    "vulnerability_type": "SQL Injection",
+    "cwe_id": "CWE-89",
+    "title": "SQL Injection Remediation",
+    "description": "SQL injection occurs when user input is concatenated directly into SQL queries",
+    "remediation_steps": "1. Use parameterized queries or prepared statements\n2. Implement input validation and sanitization\n3. Apply principle of least privilege to database accounts\n4. Use ORM frameworks when possible\n5. Enable SQL query logging and monitoring",
+    "code_examples": "# Bad - Vulnerable to SQL injection\nquery = f\"SELECT * FROM users WHERE username = '{user_input}'\"\n\n# Good - Using parameterized query\nquery = \"SELECT * FROM users WHERE username = ?\"\ncursor.execute(query, (user_input,))",
+    "effort_hours": 4,
+    "required_skills": ["backend_development", "database"],
+    "references": ["https://owasp.org/www-community/attacks/SQL_Injection", "https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html"]
+  },
+  {
+    "vulnerability_type": "Cross-Site Scripting (XSS)",
+    "cwe_id": "CWE-79",
+    "title": "XSS Vulnerability Remediation",
+    "description": "XSS allows attackers to inject malicious scripts into web pages",
+    "remediation_steps": "1. Encode all user-supplied data before output\n2. Use Content Security Policy (CSP) headers\n3. Implement input validation\n4. Use secure frameworks that auto-escape by default\n5. Sanitize HTML if user-generated HTML is required",
+    "code_examples": "// Bad - Direct insertion\nelement.innerHTML = userInput;\n\n// Good - Using textContent\nelement.textContent = userInput;\n\n// Or use DOMPurify for HTML\nelement.innerHTML = DOMPurify.sanitize(userInput);",
+    "effort_hours": 3,
+    "required_skills": ["frontend_development", "security"],
+    "references": ["https://owasp.org/www-community/attacks/xss/", "https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html"]
+  },
+  {
+    "vulnerability_type": "Broken Authentication",
+    "cwe_id": "CWE-287",
+    "title": "Authentication Vulnerability Remediation",
+    "description": "Weak or broken authentication mechanisms allow unauthorized access",
+    "remediation_steps": "1. Implement multi-factor authentication\n2. Use strong password policies\n3. Implement account lockout mechanisms\n4. Use secure session management\n5. Implement proper password hashing (bcrypt, Argon2)\n6. Enable security logging and monitoring",
+    "code_examples": "# Bad - Plain text password\nif user.password == input_password:\n    login()\n\n# Good - Using bcrypt\nimport bcrypt\nif bcrypt.checkpw(input_password.encode(), user.password_hash):\n    login()",
+    "effort_hours": 8,
+    "required_skills": ["backend_development", "security", "authentication"],
+    "references": ["https://owasp.org/www-project-top-ten/2017/A2_2017-Broken_Authentication", "https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html"]
+  },
+  {
+    "vulnerability_type": "Sensitive Data Exposure",
+    "cwe_id": "CWE-311",
+    "title": "Data Encryption Remediation",
+    "description": "Sensitive data transmitted or stored without encryption",
+    "remediation_steps": "1. Enforce HTTPS/TLS for all communications\n2. Encrypt sensitive data at rest using AES-256\n3. Use secure key management (AWS KMS, HashiCorp Vault)\n4. Implement certificate pinning for mobile apps\n5. Disable legacy SSL/TLS protocols\n6. Use HSTS headers",
+    "code_examples": "# Encrypt data at rest\nfrom cryptography.fernet import Fernet\n\nkey = Fernet.generate_key()\nfernet = Fernet(key)\nencrypted = fernet.encrypt(sensitive_data.encode())\n\n# Store encrypted data\ndb.save(encrypted_data=encrypted)",
+    "effort_hours": 6,
+    "required_skills": ["backend_development", "cryptography", "devops"],
+    "references": ["https://owasp.org/www-project-top-ten/2017/A3_2017-Sensitive_Data_Exposure", "https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html"]
+  },
+  {
+    "vulnerability_type": "Security Misconfiguration",
+    "cwe_id": "CWE-16",
+    "title": "Security Configuration Hardening",
+    "description": "Systems running with insecure default configurations",
+    "remediation_steps": "1. Remove default accounts and passwords\n2. Disable unnecessary services and features\n3. Implement security headers (CSP, X-Frame-Options, etc.)\n4. Keep all software updated\n5. Use security benchmarks (CIS, NIST)\n6. Implement least privilege access",
+    "code_examples": "# Security headers in FastAPI\nfrom fastapi import FastAPI\nfrom fastapi.middleware.cors import CORSMiddleware\nfrom fastapi.middleware.trustedhost import TrustedHostMiddleware\n\napp = FastAPI()\n\n@app.middleware(\"http\")\nasync def add_security_headers(request, call_next):\n    response = await call_next(request)\n    response.headers[\"X-Content-Type-Options\"] = \"nosniff\"\n    response.headers[\"X-Frame-Options\"] = \"DENY\"\n    response.headers[\"Strict-Transport-Security\"] = \"max-age=31536000\"\n    return response",
+    "effort_hours": 5,
+    "required_skills": ["devops", "security", "system_administration"],
+    "references": ["https://owasp.org/www-project-top-ten/2017/A6_2017-Security_Misconfiguration", "https://www.cisecurity.org/cis-benchmarks"]
+  }
+]
