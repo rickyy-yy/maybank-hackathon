@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import os
 
+from app.api.v1 import scans, findings
+
 app = FastAPI(
     title="VulnForge API",
     description="Vulnerability Remediation Engine",
@@ -17,32 +19,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include routers
+app.include_router(scans.router)
+app.include_router(findings.router)
+
 @app.get("/")
 async def root():
     return {
         "message": "VulnForge API",
         "version": "1.0.0",
-        "status": "running"
+        "status": "running",
+        "docs": "/docs"
     }
 
 @app.get("/api/v1/health")
 async def health_check():
     return {
         "status": "healthy",
-        "database": "not_connected",
-        "redis": "not_connected"
-    }
-
-@app.get("/api/v1/scans")
-async def get_scans():
-    return {
-        "scans": [],
-        "total": 0
-    }
-
-@app.get("/api/v1/findings")
-async def get_findings():
-    return {
-        "findings": [],
-        "total": 0
+        "message": "VulnForge API is operational"
     }
