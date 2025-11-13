@@ -1,0 +1,49 @@
+<?xml version="1.0" ?>
+<NessusClientData_v2>
+  <Policy>
+    <policyName>Sample Security Scan</policyName>
+  </Policy>
+  <Report name="sample-scan">
+    <ReportHost name="192.168.1.100">
+      <ReportItem port="443" protocol="tcp" pluginID="51192" pluginName="SSL Certificate Cannot Be Trusted" severity="3">
+        <description>The SSL certificate for this service cannot be trusted.</description>
+        <solution>Purchase or generate a proper SSL certificate for this service.</solution>
+        <synopsis>The SSL certificate for this service is not trusted.</synopsis>
+        <plugin_output>Certificate details here...</plugin_output>
+        <cvss_base_score>7.5</cvss_base_score>
+        <cvss3_base_score>7.5</cvss3_base_score>
+        <cvss_vector>CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N</cvss_vector>
+        <cve>CVE-2023-12345</cve>
+        <xref>CWE-295</xref>
+      </ReportItem>
+      <ReportItem port="80" protocol="tcp" pluginID="10114" pluginName="SQL Injection" severity="4">
+        <description>The remote web application is prone to SQL injection attacks.</description>
+        <solution>Use parameterized queries and input validation.</solution>
+        <synopsis>SQL injection vulnerability detected.</synopsis>
+        <plugin_output>SQL injection found in parameter 'id'</plugin_output>
+        <cvss_base_score>9.8</cvss_base_score>
+        <cvss3_base_score>9.8</cvss3_base_score>
+        <cvss_vector>CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H</cvss_vector>
+        <cve>CVE-2023-67890</cve>
+        <xref>CWE-89</xref>
+      </ReportItem>
+      <ReportItem port="22" protocol="tcp" pluginID="70658" pluginName="SSH Weak Encryption Algorithms Supported" severity="2">
+        <description>The SSH server supports weak encryption algorithms.</description>
+        <solution>Disable weak encryption algorithms.</solution>
+        <synopsis>Weak SSH encryption detected.</synopsis>
+        <cvss_base_score>4.3</cvss_base_score>
+        <cvss3_base_score>5.9</cvss3_base_score>
+      </ReportItem>
+    </ReportHost>
+    <ReportHost name="192.168.1.101">
+      <ReportItem port="3389" protocol="tcp" pluginID="58453" pluginName="RDP Weak Encryption" severity="3">
+        <description>The remote RDP service supports weak encryption.</description>
+        <solution>Enable strong encryption for RDP.</solution>
+        <synopsis>Weak RDP encryption detected.</synopsis>
+        <cvss_base_score>6.5</cvss_base_score>
+        <cvss3_base_score>6.5</cvss3_base_score>
+        <cve>CVE-2023-11111</cve>
+      </ReportItem>
+    </ReportHost>
+  </Report>
+</NessusClientData_v2>
