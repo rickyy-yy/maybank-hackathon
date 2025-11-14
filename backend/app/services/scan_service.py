@@ -44,8 +44,22 @@ class ScanService:
         3. Calculate risk scores and prioritize
         4. Apply remediation guidance
         5. Update scan statistics
+
+        Args:
+            scan_id: UUID of the scan record
+            file_content: Raw file bytes
+
+        Returns:
+            Processing results with statistics
         """
-        # ... existing code ...
+        # Get scan record
+        result = await self.db.execute(
+            select(Scan).where(Scan.id == scan_id)
+        )
+        scan = result.scalar_one_or_none()
+
+        if not scan:
+            raise ValueError(f"Scan not found: {scan_id}")
 
         try:
             logger.info(f"Starting processing for scan {scan_id}")
@@ -155,19 +169,19 @@ class ScanService:
             logger.error(f"Error creating finding: {str(e)}", exc_info=True)
             return None
 
-        async def get_scan(self, scan_id: uuid.UUID) -> Optional[Scan]:
-            """Get scan by ID"""
-            result = await self.db.execute(
-                select(Scan).where(Scan.id == scan_id)
-            )
-            return result.scalar_one_or_none()
+    async def get_scan(self, scan_id: uuid.UUID) -> Optional[Scan]:
+        """Get scan by ID"""
+        result = await self.db.execute(
+            select(Scan).where(Scan.id == scan_id)
+        )
+        return result.scalar_one_or_none()
 
-        async def get_all_scans(self, limit: int = 50, offset: int = 0):
-            """Get all scans with pagination"""
-            result = await self.db.execute(
-                select(Scan)
-                .order_by(Scan.upload_date.desc())
-                .limit(limit)
-                .offset(offset)
-            )
-            return result.scalars().all()
+    async def get_all_scans(self, limit: int = 50, offset: int = 0):
+        """Get all scans with pagination"""
+        result = await self.db.execute(
+            select(Scan)
+            .order_by(Scan.upload_date.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        return result.scalars().all()

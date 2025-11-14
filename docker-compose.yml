@@ -10,7 +10,6 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U vulnforge"]
       interval: 10s
@@ -36,17 +35,11 @@ services:
       dockerfile: Dockerfile
     container_name: vulnforge-api
     environment:
-      DATABASE_URL: postgresql+asyncpg://vulnforge:dev_password_change_in_prod@postgres:5432/vulnforge
+      DATABASE_URL: postgresql+asyncpg://vulnforge:password@postgres:5432/vulnforge
       REDIS_URL: redis://redis:6379/0
       SECRET_KEY: dev_secret_key_change_in_prod
       ENVIRONMENT: development
-      CORS_ORIGINS: http://localhost:5173
-      NVD_API_KEY: ${NVD_API_KEY:-}
-      JIRA_URL: ${JIRA_URL:-}
-      JIRA_EMAIL: ${JIRA_EMAIL:-}
-      JIRA_API_TOKEN: ${JIRA_API_TOKEN:-}
-      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
     ports:
       - "8000:8000"
     volumes:

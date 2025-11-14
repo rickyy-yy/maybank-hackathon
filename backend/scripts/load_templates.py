@@ -4,6 +4,7 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from sqlalchemy import text
 from app.database import async_session_maker
 from app.models.template import RemediationTemplate
 
@@ -93,7 +94,7 @@ Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-{random}'"
 8. Configure perfect forward secrecy""",
             "code_examples": """# Nginx Configuration
 ssl_protocols TLSv1.2 TLSv1.3;
-ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384';
+ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256';
 ssl_prefer_server_ciphers on;
 add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
@@ -101,10 +102,8 @@ add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" alway
 SSLProtocol -all +TLSv1.2 +TLSv1.3
 SSLCipherSuite ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256
 SSLHonorCipherOrder on
-Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
 
-# Test with:
-# openssl s_client -connect your-server.com:443 -tls1_2""",
+# Test with: openssl s_client -connect your-server.com:443 -tls1_2""",
             "effort_hours": 4,
             "required_skills": ["system_administration", "networking", "security"],
             "references": [
@@ -144,8 +143,7 @@ if bcrypt.checkpw(input_password.encode('utf-8'), user.password_hash):
 # Session configuration
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_SAMESITE'] = 'Strict'
-app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # 1 hour""",
+app.config['SESSION_COOKIE_SAMESITE'] = 'Strict'""",
             "effort_hours": 12,
             "required_skills": ["backend_development", "security", "authentication"],
             "references": [
@@ -175,6 +173,7 @@ database_url = os.environ.get('DATABASE_URL')
 
 # SECURE CODE (with secrets management)
 import boto3
+import json
 
 def get_secret():
     client = boto3.client('secretsmanager')
@@ -211,23 +210,18 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-XSS-Protection', '1; mode=block');
-  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-  res.setHeader('Content-Security-Policy', "default-src 'self'");
   next();
 });
 
 # Docker Security
 FROM node:18-alpine
 RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
-USER nodejs  # Don't run as root
+USER nodejs
 
 # Kubernetes Security Context
 securityContext:
   runAsNonRoot: true
   runAsUser: 1000
-  capabilities:
-    drop:
-      - ALL
   readOnlyRootFilesystem: true""",
             "effort_hours": 8,
             "required_skills": ["devops", "security", "system_administration"],
@@ -239,17 +233,24 @@ securityContext:
     ]
 
     async with async_session_maker() as session:
-        # Clear existing templates
-        await session.execute("DELETE FROM remediation_templates")
+        try:
+            # Clear existing templates using text() for raw SQL
+            await session.execute(text("DELETE FROM remediation_templates"))
 
-        # Insert templates
-        for template_data in templates:
-            template = RemediationTemplate(**template_data)
-            session.add(template)
+            # Insert templates
+            for template_data in templates:
+                template = RemediationTemplate(**template_data)
+                session.add(template)
 
-        await session.commit()
-        print(f"✅ Loaded {len(templates)} remediation templates")
+            await session.commit()
+            print(f"✅ Loaded {len(templates)} remediation templates successfully!")
+
+        except Exception as e:
+            print(f"❌ Error loading templates: {e}")
+            await session.rollback()
+            raise
 
 
 if __name__ == "__main__":
+    print("Loading remediation templates...")
     asyncio.run(load_templates())

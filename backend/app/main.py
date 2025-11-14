@@ -1,6 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import os
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 from app.api.v1 import scans, findings
 
@@ -10,10 +15,14 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS configuration
+# CORS configuration - be more permissive for development
+origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
+
+logger.info(f"CORS origins configured: {origins}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("CORS_ORIGINS", "http://localhost:5173").split(","),
+    allow_origins=["*"],  # Allow all origins in development
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -38,3 +47,12 @@ async def health_check():
         "status": "healthy",
         "message": "VulnForge API is operational"
     }
+
+# Add startup event to log configuration
+@app.on_event("startup")
+async def startup_event():
+    logger.info("=" * 50)
+    logger.info("VulnForge API Starting")
+    logger.info(f"CORS Origins: {origins}")
+    logger.info(f"Environment: {os.getenv('ENVIRONMENT', 'development')}")
+    logger.info("=" * 50)
