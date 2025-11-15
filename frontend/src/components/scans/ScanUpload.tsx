@@ -1,30 +1,49 @@
 import React, { useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, FileText, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
+import { Upload, FileText, AlertCircle, CheckCircle, Loader2, ArrowRight } from 'lucide-react';
 import { useUploadScan, useScanStatus } from '../../hooks/useScans';
 import { useNavigate } from 'react-router-dom';
 
 const ScanUpload: React.FC = () => {
   const [uploadedScanId, setUploadedScanId] = useState<string | null>(null);
   const [sourceTool, setSourceTool] = useState('nessus');
+  const [autoNavigate, setAutoNavigate] = useState(true);
   const navigate = useNavigate();
   
   const uploadMutation = useUploadScan();
-  const { data: statusData, isError: statusError } = useScanStatus(
+  const { data: statusData, isError: statusError, refetch: refetchStatus } = useScanStatus(
     uploadedScanId || '', 
     !!uploadedScanId
   );
 
-  // Reset when status becomes completed or failed
+  // Handle auto-navigation when processing completes
   useEffect(() => {
-    if (statusData?.status === 'completed' || statusData?.status === 'failed') {
-      // Auto-clear after showing success for 2 seconds
+    if (statusData?.status === 'completed' && autoNavigate && uploadedScanId) {
+      // Wait 2 seconds to show success message, then navigate
       const timer = setTimeout(() => {
-        setUploadedScanId(null);
-      }, 5000);
+        navigate(`/findings?scan_id=${uploadedScanId}`);
+      }, 2000);
+      
       return () => clearTimeout(timer);
     }
-  }, [statusData?.status]);
+  }, [statusData?.status, autoNavigate, uploadedScanId, navigate]);
+
+  // Force refetch status every 2 seconds while processing
+  useEffect(() => {
+    if (uploadedScanId && statusData?.status === 'processing') {
+      const interval = setInterval(() => {
+        refetchStatus();
+      }, 2000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [uploadedScanId, statusData?.status, refetchStatus]);
+
+  // Reset upload state
+  const handleReset = () => {
+    setUploadedScanId(null);
+    setAutoNavigate(true);
+  };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: {
@@ -40,6 +59,7 @@ const ScanUpload: React.FC = () => {
         try {
           const result = await uploadMutation.mutateAsync({ file, sourceTool });
           setUploadedScanId(result.scan_id);
+          setAutoNavigate(true);
         } catch (error) {
           console.error('Upload failed:', error);
         }
@@ -52,11 +72,11 @@ const ScanUpload: React.FC = () => {
     
     switch (statusData.status) {
       case 'processing':
-        return <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />;
+        return <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />;
       case 'completed':
-        return <CheckCircle className="w-5 h-5 text-green-600" />;
+        return <CheckCircle className="w-6 h-6 text-green-600" />;
       case 'failed':
-        return <AlertCircle className="w-5 h-5 text-red-600" />;
+        return <AlertCircle className="w-6 h-6 text-red-600" />;
       default:
         return null;
     }
@@ -67,11 +87,11 @@ const ScanUpload: React.FC = () => {
     
     switch (statusData.status) {
       case 'processing':
-        return 'border-blue-200 bg-blue-50';
+        return 'border-blue-300 bg-blue-50';
       case 'completed':
-        return 'border-green-200 bg-green-50';
+        return 'border-green-300 bg-green-50';
       case 'failed':
-        return 'border-red-200 bg-red-50';
+        return 'border-red-300 bg-red-50';
       default:
         return '';
     }
@@ -116,9 +136,15 @@ const ScanUpload: React.FC = () => {
           {isDragActive ? (
             <p className="text-lg text-blue-600">Drop the file here...</p>
           ) : uploadMutation.isPending ? (
-            <p className="text-lg text-gray-600">Uploading...</p>
+            <>
+              <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-2" />
+              <p className="text-lg text-gray-600">Uploading file...</p>
+            </>
           ) : statusData?.status === 'processing' ? (
-            <p className="text-lg text-gray-600">Processing in progress...</p>
+            <>
+              <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-2" />
+              <p className="text-lg text-gray-600">Processing scan data...</p>
+            </>
           ) : (
             <>
               <p className="text-lg text-gray-700 mb-2">
@@ -133,21 +159,28 @@ const ScanUpload: React.FC = () => {
 
         {/* Upload Error */}
         {uploadMutation.isError && (
-          <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600" />
-            <span className="text-red-800">
-              Upload failed: {(uploadMutation.error as Error).message}
-            </span>
+          <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-red-800">Upload Failed</p>
+              <p className="text-sm text-red-700 mt-1">
+                {(uploadMutation.error as Error).message}
+              </p>
+            </div>
           </div>
         )}
 
         {/* Status Error */}
         {statusError && uploadedScanId && (
-          <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-yellow-600" />
-            <span className="text-yellow-800">
-              Unable to fetch scan status. Check "All Scans" tab for results.
-            </span>
+          <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-yellow-800">Status Check Failed</p>
+              <p className="text-sm text-yellow-700 mt-1">
+                Unable to fetch scan status. The scan may still be processing.
+                Check the "All Scans" tab for results.
+              </p>
+            </div>
           </div>
         )}
       </div>
@@ -158,84 +191,160 @@ const ScanUpload: React.FC = () => {
           <div className="flex items-start gap-4">
             <div className="mt-1">{getStatusIcon()}</div>
             <div className="flex-1">
-              <h3 className="text-lg font-semibold mb-2">
-                {statusData.status === 'processing' && 'Processing Scan...'}
-                {statusData.status === 'completed' && 'Scan Processing Complete'}
-                {statusData.status === 'failed' && 'Processing Failed'}
+              <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
+                {statusData.status === 'processing' && (
+                  <>
+                    <span>Processing Scan</span>
+                    <span className="text-sm font-normal text-gray-600">(This may take a minute)</span>
+                  </>
+                )}
+                {statusData.status === 'completed' && '✅ Scan Processing Complete'}
+                {statusData.status === 'failed' && '❌ Processing Failed'}
               </h3>
 
-              {statusData.status === 'completed' && statusData.statistics && (
-                <div className="space-y-2">
-                  <p className="text-gray-700">
-                    Successfully processed{' '}
-                    <span className="font-semibold">{statusData.total_findings}</span> findings
-                  </p>
-                  <div className="grid grid-cols-5 gap-4 mt-4">
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-red-600">
-                        {statusData.statistics.critical}
-                      </div>
-                      <div className="text-xs text-gray-600">Critical</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-orange-600">
-                        {statusData.statistics.high}
-                      </div>
-                      <div className="text-xs text-gray-600">High</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-yellow-600">
-                        {statusData.statistics.medium}
-                      </div>
-                      <div className="text-xs text-gray-600">Medium</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-green-600">
-                        {statusData.statistics.low}
-                      </div>
-                      <div className="text-xs text-gray-600">Low</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-blue-600">
-                        {statusData.statistics.info}
-                      </div>
-                      <div className="text-xs text-gray-600">Info</div>
-                    </div>
+              {/* Processing Status */}
+              {statusData.status === 'processing' && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm text-gray-700">
+                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
+                    <span>Parsing vulnerability data and creating findings...</span>
                   </div>
-                  <div className="flex gap-2 mt-4">
-                    <button
-                      onClick={() => navigate(`/findings?scan_id=${uploadedScanId}`)}
-                      className="btn-primary flex-1"
-                    >
-                      View Findings
-                    </button>
-                    <button
-                      onClick={() => setUploadedScanId(null)}
-                      className="btn-secondary"
-                    >
-                      Upload Another
-                    </button>
+                  <div className="bg-white rounded p-3 border border-blue-200">
+                    <p className="text-xs text-blue-800">
+                      <strong>Processing Steps:</strong>
+                    </p>
+                    <ol className="text-xs text-blue-700 mt-1 space-y-1 list-decimal list-inside">
+                      <li>Parsing scan file format</li>
+                      <li>Extracting vulnerability data</li>
+                      <li>Calculating risk scores</li>
+                      <li>Applying remediation guidance with web search</li>
+                      <li>Prioritizing findings</li>
+                    </ol>
                   </div>
                 </div>
               )}
 
-              {statusData.status === 'processing' && (
-                <p className="text-gray-600">
-                  Parsing vulnerability data and creating findings...
-                </p>
+              {/* Completed Status */}
+              {statusData.status === 'completed' && statusData.statistics && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 text-green-700">
+                    <CheckCircle className="w-5 h-5" />
+                    <p className="font-medium">
+                      Successfully processed{' '}
+                      <span className="font-bold">{statusData.total_findings}</span> findings
+                    </p>
+                  </div>
+                  
+                  {/* Severity Breakdown */}
+                  <div className="grid grid-cols-5 gap-3">
+                    <div className="text-center bg-white rounded p-3 border border-red-200">
+                      <div className="text-2xl font-bold text-red-600">
+                        {statusData.statistics.critical}
+                      </div>
+                      <div className="text-xs text-gray-600 mt-1">Critical</div>
+                    </div>
+                    <div className="text-center bg-white rounded p-3 border border-orange-200">
+                      <div className="text-2xl font-bold text-orange-600">
+                        {statusData.statistics.high}
+                      </div>
+                      <div className="text-xs text-gray-600 mt-1">High</div>
+                    </div>
+                    <div className="text-center bg-white rounded p-3 border border-yellow-200">
+                      <div className="text-2xl font-bold text-yellow-600">
+                        {statusData.statistics.medium}
+                      </div>
+                      <div className="text-xs text-gray-600 mt-1">Medium</div>
+                    </div>
+                    <div className="text-center bg-white rounded p-3 border border-green-200">
+                      <div className="text-2xl font-bold text-green-600">
+                        {statusData.statistics.low}
+                      </div>
+                      <div className="text-xs text-gray-600 mt-1">Low</div>
+                    </div>
+                    <div className="text-center bg-white rounded p-3 border border-blue-200">
+                      <div className="text-2xl font-bold text-blue-600">
+                        {statusData.statistics.info}
+                      </div>
+                      <div className="text-xs text-gray-600 mt-1">Info</div>
+                    </div>
+                  </div>
+
+                  {/* Navigation Options */}
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      onClick={() => navigate(`/findings?scan_id=${uploadedScanId}`)}
+                      className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 font-medium"
+                    >
+                      View Findings
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={handleReset}
+                      className="px-4 py-3 bg-white text-gray-700 rounded-md hover:bg-gray-50 transition-colors border border-gray-300"
+                    >
+                      Upload Another
+                    </button>
+                  </div>
+
+                  {autoNavigate && (
+                    <p className="text-xs text-center text-gray-600 flex items-center justify-center gap-2">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Redirecting to findings in 2 seconds...
+                    </p>
+                  )}
+                </div>
               )}
 
-              {statusData.status === 'failed' && statusData.error && (
-                <div className="mt-2 p-3 bg-white rounded border border-red-200">
-                  <p className="text-sm text-red-800">{statusData.error}</p>
+              {/* Failed Status */}
+              {statusData.status === 'failed' && (
+                <div className="space-y-3">
+                  {statusData.error && (
+                    <div className="bg-white rounded p-3 border border-red-200">
+                      <p className="text-sm font-semibold text-red-800 mb-1">Error Details:</p>
+                      <p className="text-sm text-red-700">{statusData.error}</p>
+                    </div>
+                  )}
+                  
+                  <div className="bg-white rounded p-3 border border-red-200">
+                    <p className="text-sm font-semibold text-red-800 mb-2">Troubleshooting:</p>
+                    <ul className="text-sm text-red-700 space-y-1 list-disc list-inside">
+                      <li>Verify the scan file is not corrupted</li>
+                      <li>Ensure the file format matches the selected scanner tool</li>
+                      <li>Check that the file contains valid vulnerability data</li>
+                      <li>Try exporting the scan again from your scanner</li>
+                    </ul>
+                  </div>
+                  
                   <button
-                    onClick={() => setUploadedScanId(null)}
-                    className="mt-3 btn-secondary"
+                    onClick={handleReset}
+                    className="w-full px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
                   >
                     Try Again
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Info Card */}
+      {!uploadedScanId && (
+        <div className="card bg-blue-50 border border-blue-200">
+          <div className="flex items-start gap-3">
+            <FileText className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="font-semibold text-blue-900 mb-2">Enhanced Remediation Guidance</h3>
+              <p className="text-sm text-blue-800 mb-2">
+                Our system now includes web search capabilities to provide:
+              </p>
+              <ul className="text-sm text-blue-700 space-y-1 list-disc list-inside">
+                <li>Latest security advisories and patches</li>
+                <li>Real-time CVE information from NVD</li>
+                <li>Vendor-specific remediation guides</li>
+                <li>OWASP best practices and cheat sheets</li>
+                <li>Current exploit availability status</li>
+              </ul>
             </div>
           </div>
         </div>

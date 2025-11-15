@@ -3,11 +3,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 import os
 import uuid
+import logging
 
 from app.database import get_db
 from app.services.scan_service import ScanService
 
 router = APIRouter(prefix="/api/v1/scans", tags=["scans"])
+logger = logging.getLogger(__name__)
 
 @router.get("")
 async def get_scans(
@@ -104,6 +106,8 @@ async def upload_scan(
     if len(file_content) == 0:
         raise HTTPException(status_code=400, detail="Empty file uploaded")
     
+    logger.info(f"Received upload: {file.filename} ({len(file_content)} bytes) for {source_tool}")
+    
     # Save file to disk
     upload_dir = "/app/uploads"
     os.makedirs(upload_dir, exist_ok=True)
@@ -112,12 +116,16 @@ async def upload_scan(
     with open(file_path, "wb") as f:
         f.write(file_content)
     
+    logger.info(f"Saved file to: {file_path}")
+    
     # Create scan record
     scan_service = ScanService(db)
     scan = await scan_service.create_scan(
         filename=file.filename,
         source_tool=source_tool
     )
+    
+    logger.info(f"Created scan record with ID: {scan.id}")
     
     # Process scan in background
     background_tasks.add_task(
@@ -126,6 +134,8 @@ async def upload_scan(
         file_content,
         source_tool
     )
+    
+    logger.info(f"Queued background processing for scan {scan.id}")
     
     return {
         "scan_id": str(scan.id),
@@ -140,47 +150,55 @@ async def get_scan_status(
     scan_id: str,
     db: AsyncSession = Depends(get_db)
 ):
-    """Check processing status of a scan"""
+    """
+    Check processing status of a scan with detailed information
+    
+    Returns:
+        - status: 'processing', 'completed', 'failed', or 'not_found'
+        - processed: boolean indicating if scan is fully processed
+        - statistics: severity breakdown if completed
+        - error: error message if failed
+    """
     try:
         scan_uuid = uuid.UUID(scan_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid scan ID format")
     
     scan_service = ScanService(db)
-    scan = await scan_service.get_scan(scan_uuid)
+    status_info = await scan_service.get_scan_status(scan_uuid)
     
-    if not scan:
+    if status_info['status'] == 'not_found':
         raise HTTPException(status_code=404, detail="Scan not found")
     
-    status = "completed" if scan.processed else "processing"
-    if scan.processing_error:
-        status = "failed"
+    logger.info(f"Status check for scan {scan_id}: {status_info['status']}")
     
-    return {
-        "scan_id": str(scan.id),
-        "status": status,
-        "processed": scan.processed,
-        "total_findings": scan.total_findings,
-        "error": scan.processing_error,
-        "statistics": {
-            "critical": scan.critical_count,
-            "high": scan.high_count,
-            "medium": scan.medium_count,
-            "low": scan.low_count,
-            "info": scan.info_count
-        } if scan.processed else None
-    }
+    return status_info
 
 async def process_scan_background(scan_id: str, file_content: bytes, source_tool: str):
-    """Background task to process scan file"""
+    """
+    Background task to process scan file
+    
+    This runs asynchronously after the upload completes, allowing the API
+    to return immediately while processing happens in the background.
+    """
     from app.database import async_session_maker
+    
+    logger.info(f"Background processing started for scan {scan_id}")
     
     async with async_session_maker() as db:
         scan_service = ScanService(db)
         try:
-            await scan_service.process_scan_file(
+            result = await scan_service.process_scan_file(
                 uuid.UUID(scan_id),
                 file_content
             )
+            
+            if result['success']:
+                logger.info(f"✅ Background processing completed successfully for scan {scan_id}")
+                logger.info(f"   Findings: {result['findings_created']}")
+                logger.info(f"   Statistics: {result['statistics']}")
+            else:
+                logger.error(f"❌ Background processing failed for scan {scan_id}: {result.get('error')}")
+                
         except Exception as e:
-            print(f"Error processing scan {scan_id}: {str(e)}")
+            logger.error(f"❌ Unexpected error in background processing for scan {scan_id}: {str(e)}", exc_info=True)
