@@ -1,23 +1,60 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Filter, Download } from 'lucide-react';
+import { Filter, Download, RefreshCw } from 'lucide-react';
 import { useFindings } from '../hooks/useFindings';
 import FindingsTable from '../components/findings/FindingsTable';
 
 const FindingsPage: React.FC = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const scanId = searchParams.get('scan_id') || undefined;
   
   const [filters, setFilters] = useState({
-    severity: '',
-    status: '',
+    severity: searchParams.get('severity') || '',
+    status: searchParams.get('status') || '',
   });
 
-  const { data, isLoading } = useFindings({
+  const { data, isLoading, refetch } = useFindings({
     scanId,
     severity: filters.severity || undefined,
     status: filters.status || undefined,
   });
+
+  const handleFilterChange = (key: string, value: string) => {
+    const newFilters = { ...filters, [key]: value };
+    setFilters(newFilters);
+    
+    // Update URL params
+    const newParams = new URLSearchParams(searchParams);
+    if (value) {
+      newParams.set(key, value);
+    } else {
+      newParams.delete(key);
+    }
+    setSearchParams(newParams);
+  };
+
+  const handleExportCSV = () => {
+    if (!data?.findings) return;
+
+    const headers = ['Severity', 'Title', 'Asset', 'CVSS', 'CVE', 'Status', 'Priority'];
+    const rows = data.findings.map(f => [
+      f.severity,
+      f.title,
+      f.affected_asset,
+      f.cvss_score?.toString() || 'N/A',
+      f.cve_id || 'N/A',
+      f.status,
+      f.priority_rank?.toString() || 'N/A'
+    ]);
+
+    const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `findings-${new Date().toISOString()}.csv`;
+    a.click();
+  };
 
   if (isLoading) {
     return (
@@ -31,6 +68,7 @@ const FindingsPage: React.FC = () => {
   }
 
   const findings = data?.findings || [];
+  const total = data?.total || 0;
 
   return (
     <div>
@@ -38,14 +76,27 @@ const FindingsPage: React.FC = () => {
         <div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Security Findings</h1>
           <p className="text-gray-600">
-            {data?.total || 0} findings discovered
+            {total} finding{total !== 1 ? 's' : ''} discovered
             {scanId && ' in selected scan'}
           </p>
         </div>
-        <button className="btn-secondary flex items-center gap-2">
-          <Download className="w-4 h-4" />
-          Export CSV
-        </button>
+        <div className="flex gap-2">
+          <button 
+            onClick={() => refetch()}
+            className="btn-secondary flex items-center gap-2"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </button>
+          <button 
+            onClick={handleExportCSV}
+            disabled={findings.length === 0}
+            className="btn-secondary flex items-center gap-2"
+          >
+            <Download className="w-4 h-4" />
+            Export CSV
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -55,7 +106,7 @@ const FindingsPage: React.FC = () => {
           <div className="flex gap-4 flex-1">
             <select
               value={filters.severity}
-              onChange={(e) => setFilters({ ...filters, severity: e.target.value })}
+              onChange={(e) => handleFilterChange('severity', e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">All Severities</option>
@@ -63,11 +114,12 @@ const FindingsPage: React.FC = () => {
               <option value="HIGH">High</option>
               <option value="MEDIUM">Medium</option>
               <option value="LOW">Low</option>
+              <option value="INFO">Info</option>
             </select>
 
             <select
               value={filters.status}
-              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+              onChange={(e) => handleFilterChange('status', e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">All Statuses</option>
@@ -76,9 +128,43 @@ const FindingsPage: React.FC = () => {
               <option value="resolved">Resolved</option>
               <option value="false_positive">False Positive</option>
             </select>
+
+            {(filters.severity || filters.status) && (
+              <button
+                onClick={() => {
+                  setFilters({ severity: '', status: '' });
+                  setSearchParams(scanId ? { scan_id: scanId } : {});
+                }}
+                className="text-sm text-blue-600 hover:text-blue-800"
+              >
+                Clear Filters
+              </button>
+            )}
           </div>
         </div>
       </div>
+
+      {/* Summary Stats */}
+      {total > 0 && (
+        <div className="grid grid-cols-5 gap-4 mb-6">
+          {['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'].map(severity => {
+            const count = findings.filter(f => f.severity === severity).length;
+            const colors = {
+              CRITICAL: 'text-red-600 bg-red-50',
+              HIGH: 'text-orange-600 bg-orange-50',
+              MEDIUM: 'text-yellow-600 bg-yellow-50',
+              LOW: 'text-green-600 bg-green-50',
+              INFO: 'text-blue-600 bg-blue-50'
+            };
+            return (
+              <div key={severity} className={`card ${colors[severity as keyof typeof colors]}`}>
+                <div className="text-2xl font-bold">{count}</div>
+                <div className="text-sm font-medium">{severity}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Findings Table */}
       {findings.length > 0 ? (
