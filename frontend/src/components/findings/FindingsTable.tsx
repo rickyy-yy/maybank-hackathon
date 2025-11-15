@@ -1,12 +1,233 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, ExternalLink, AlertCircle } from 'lucide-react';
-import { Finding } from '../../types/finding';
+import { ChevronDown, ChevronUp, ExternalLink, AlertCircle, CheckCircle2, Clock, Wrench } from 'lucide-react';
+
+interface Finding {
+  id: string;
+  source_scan_id: string;
+  title: string;
+  description: string;
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
+  cvss_score?: number;
+  cvss_vector?: string;
+  cve_id?: string;
+  cwe_id?: string;
+  risk_score: number;
+  priority_rank: number;
+  affected_asset: string;
+  asset_hostname?: string;
+  port?: number;
+  protocol?: string;
+  service?: string;
+  evidence?: string;
+  remediation_guidance?: string;
+  effort_hours?: number;
+  status: 'open' | 'in_progress' | 'resolved' | 'false_positive';
+  jira_ticket_key?: string;
+  jira_ticket_url?: string;
+  detected_date: string;
+  resolved_date?: string;
+}
 
 interface FindingsTableProps {
   findings: Finding[];
   onSelectFinding: (finding: Finding) => void;
   onCreateTicket: (findingIds: string[]) => void;
 }
+
+const RemediationGuidanceDisplay: React.FC<{ guidance: string; effortHours?: number }> = ({ 
+  guidance, 
+  effortHours 
+}) => {
+  // Parse the guidance text into structured sections
+  const parseGuidance = (text: string) => {
+    const sections: { title: string; content: string; type: string }[] = [];
+    
+    // Split by markdown headers (# or ##)
+    const parts = text.split(/(?=^#{1,3}\s)/m);
+    
+    parts.forEach(part => {
+      const trimmed = part.trim();
+      if (!trimmed) return;
+      
+      // Extract header and content
+      const headerMatch = trimmed.match(/^#{1,3}\s+(.+?)$/m);
+      if (headerMatch) {
+        const title = headerMatch[1].replace(/\*\*/g, '').trim();
+        const content = trimmed.substring(headerMatch[0].length).trim();
+        
+        // Determine section type
+        let type = 'info';
+        if (title.includes('Remediation') || title.includes('Steps') || title.includes('Actions')) {
+          type = 'steps';
+        } else if (title.includes('Code') || title.includes('Example')) {
+          type = 'code';
+        } else if (title.includes('Reference') || title.includes('Resource')) {
+          type = 'links';
+        } else if (title.includes('Overview') || title.includes('Issue')) {
+          type = 'description';
+        } else if (title.includes('Security') || title.includes('Advisory')) {
+          type = 'advisory';
+        }
+        
+        sections.push({ title, content, type });
+      } else {
+        // Content without header
+        sections.push({ title: '', content: trimmed, type: 'text' });
+      }
+    });
+    
+    return sections;
+  };
+
+  // Convert URLs to clickable links
+  const linkifyText = (text: string) => {
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const parts = text.split(urlRegex);
+    
+    return parts.map((part, index) => {
+      if (part.match(urlRegex)) {
+        return (
+          <a
+            key={index}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:text-blue-800 underline inline-flex items-center gap-1"
+          >
+            {part.length > 60 ? part.substring(0, 60) + '...' : part}
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        );
+      }
+      return <span key={index}>{part}</span>;
+    });
+  };
+
+  // Format list items
+  const formatContent = (content: string, type: string) => {
+    const lines = content.split('\n').filter(line => line.trim());
+    
+    if (type === 'steps') {
+      return (
+        <ol className="list-decimal list-inside space-y-2 text-sm">
+          {lines.map((line, index) => {
+            const cleaned = line.replace(/^\d+\.\s*/, '').replace(/\*\*/g, '').trim();
+            if (!cleaned) return null;
+            return (
+              <li key={index} className="text-gray-700 leading-relaxed">
+                {linkifyText(cleaned)}
+              </li>
+            );
+          })}
+        </ol>
+      );
+    } else if (type === 'links') {
+      return (
+        <ul className="space-y-2 text-sm">
+          {lines.map((line, index) => {
+            const cleaned = line.replace(/^[-*]\s*/, '').replace(/\*\*/g, '').trim();
+            if (!cleaned) return null;
+            return (
+              <li key={index} className="text-gray-700 flex items-start gap-2">
+                <ExternalLink className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+                <span>{linkifyText(cleaned)}</span>
+              </li>
+            );
+          })}
+        </ul>
+      );
+    } else if (type === 'code') {
+      return (
+        <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto text-xs font-mono">
+          <code>{content.replace(/```/g, '').trim()}</code>
+        </pre>
+      );
+    } else {
+      return (
+        <div className="text-sm text-gray-700 space-y-2">
+          {lines.map((line, index) => {
+            const cleaned = line.replace(/^[-*]\s*/, '').replace(/\*\*/g, '').trim();
+            if (!cleaned) return null;
+            return <p key={index} className="leading-relaxed">{linkifyText(cleaned)}</p>;
+          })}
+        </div>
+      );
+    }
+  };
+
+  const sections = parseGuidance(guidance);
+
+  return (
+    <div className="space-y-6 bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-lg border border-blue-200">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-blue-200 pb-4">
+        <div className="flex items-center gap-3">
+          <div className="bg-blue-600 p-2 rounded-lg">
+            <Wrench className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-gray-900">Remediation Guidance</h3>
+            <p className="text-sm text-gray-600">Step-by-step instructions to fix this vulnerability</p>
+          </div>
+        </div>
+        {effortHours && (
+          <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg border border-blue-200">
+            <Clock className="w-4 h-4 text-blue-600" />
+            <div>
+              <div className="text-xs text-gray-600">Estimated Effort</div>
+              <div className="text-sm font-bold text-gray-900">{effortHours} hours</div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Sections */}
+      {sections.map((section, index) => {
+        if (!section.content && !section.title) return null;
+        
+        const getSectionIcon = (type: string) => {
+          switch (type) {
+            case 'steps':
+              return <CheckCircle2 className="w-5 h-5 text-green-600" />;
+            case 'advisory':
+              return <AlertCircle className="w-5 h-5 text-orange-600" />;
+            case 'links':
+              return <ExternalLink className="w-5 h-5 text-blue-600" />;
+            default:
+              return null;
+          }
+        };
+
+        const getSectionColor = (type: string) => {
+          switch (type) {
+            case 'steps':
+              return 'bg-green-50 border-green-200';
+            case 'advisory':
+              return 'bg-orange-50 border-orange-200';
+            case 'links':
+              return 'bg-blue-50 border-blue-200';
+            case 'description':
+              return 'bg-gray-50 border-gray-200';
+            default:
+              return 'bg-white border-gray-200';
+          }
+        };
+
+        return (
+          <div key={index} className={`rounded-lg border ${getSectionColor(section.type)} p-4`}>
+            {section.title && (
+              <div className="flex items-center gap-2 mb-3">
+                {getSectionIcon(section.type)}
+                <h4 className="font-semibold text-gray-900">{section.title}</h4>
+              </div>
+            )}
+            {section.content && formatContent(section.content, section.type)}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 
 const FindingsTable: React.FC<FindingsTableProps> = ({
   findings,
@@ -51,7 +272,7 @@ const FindingsTable: React.FC<FindingsTableProps> = ({
           </span>
           <button
             onClick={() => onCreateTicket(Array.from(selectedIds))}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium"
           >
             Create Jira Tickets
           </button>
@@ -117,7 +338,7 @@ const FindingsTable: React.FC<FindingsTableProps> = ({
                     </span>
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-900 max-w-md">
-                    <div className="truncate">{finding.title}</div>
+                    <div className="truncate font-medium">{finding.title}</div>
                     {finding.cve_id && (
                       <span className="text-xs text-gray-500">({finding.cve_id})</span>
                     )}
@@ -155,7 +376,7 @@ const FindingsTable: React.FC<FindingsTableProps> = ({
                   <td className="px-4 py-3 whitespace-nowrap text-right text-sm">
                     <button
                       onClick={() => toggleExpand(finding.id)}
-                      className="text-gray-400 hover:text-gray-600"
+                      className="text-gray-400 hover:text-gray-600 transition-colors"
                     >
                       {expandedId === finding.id ? (
                         <ChevronUp className="w-5 h-5" />
@@ -169,15 +390,18 @@ const FindingsTable: React.FC<FindingsTableProps> = ({
                 {/* Expanded Details Row */}
                 {expandedId === finding.id && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-4 bg-gray-50">
-                      <div className="space-y-4">
+                    <td colSpan={7} className="px-4 py-6 bg-gray-50">
+                      <div className="space-y-6 max-w-6xl">
                         {/* Description */}
                         {finding.description && (
                           <div>
-                            <h4 className="text-sm font-semibold text-gray-700 mb-2">
+                            <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                              <AlertCircle className="w-4 h-4 text-orange-600" />
                               Description
                             </h4>
-                            <p className="text-sm text-gray-600">{finding.description}</p>
+                            <p className="text-sm text-gray-600 bg-white p-4 rounded-lg border border-gray-200">
+                              {finding.description}
+                            </p>
                           </div>
                         )}
 
@@ -185,45 +409,46 @@ const FindingsTable: React.FC<FindingsTableProps> = ({
                         {finding.evidence && (
                           <div>
                             <h4 className="text-sm font-semibold text-gray-700 mb-2">Evidence</h4>
-                            <pre className="text-xs bg-white p-3 rounded border border-gray-200 overflow-x-auto">
+                            <pre className="text-xs bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto border border-gray-700">
                               {finding.evidence}
                             </pre>
                           </div>
                         )}
 
-                        {/* Remediation */}
+                        {/* Remediation Guidance */}
                         {finding.remediation_guidance && (
-                          <div>
-                            <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                              <AlertCircle className="w-4 h-4 text-blue-600" />
-                              Remediation Guidance
-                            </h4>
-                            <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded border border-blue-200">
-                              {finding.remediation_guidance}
-                            </div>
-                            {finding.effort_hours && (
-                              <p className="text-xs text-gray-500 mt-2">
-                                Estimated effort: {finding.effort_hours} hours
-                              </p>
-                            )}
-                          </div>
+                          <RemediationGuidanceDisplay
+                            guidance={finding.remediation_guidance}
+                            effortHours={finding.effort_hours}
+                          />
                         )}
 
                         {/* Actions */}
-                        <div className="flex gap-2 pt-2">
+                        <div className="flex gap-3 pt-2">
                           <button
                             onClick={() => onSelectFinding(finding)}
-                            className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium text-sm"
                           >
                             View Full Details
                           </button>
                           {!finding.jira_ticket_url && (
                             <button
                               onClick={() => onCreateTicket([finding.id])}
-                              className="px-3 py-1 text-sm bg-gray-600 text-white rounded hover:bg-gray-700"
+                              className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 font-medium text-sm"
                             >
                               Create Jira Ticket
                             </button>
+                          )}
+                          {finding.jira_ticket_url && (
+                            <a
+                              href={finding.jira_ticket_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium text-sm inline-flex items-center gap-2"
+                            >
+                              View Jira Ticket
+                              <ExternalLink className="w-4 h-4" />
+                            </a>
                           )}
                         </div>
                       </div>
