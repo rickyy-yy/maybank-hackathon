@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import os
+from app.api.v1.integrations import jira
 import logging
 
 # Configure logging
@@ -31,6 +32,7 @@ app.add_middleware(
 # Include routers
 app.include_router(scans.router)
 app.include_router(findings.router)
+app.include_router(jira.router)
 
 @app.get("/")
 async def root():
