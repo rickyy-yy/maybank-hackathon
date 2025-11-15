@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import os
-from app.api.v1.integrations import jira
 import logging
 
 # Configure logging
@@ -9,6 +8,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 from app.api.v1 import scans, findings
+from app.api.v1.integrations import jira  # Make sure this import is here
 
 app = FastAPI(
     title="VulnForge API",
@@ -16,23 +16,23 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS configuration - be more permissive for development
+# CORS configuration
 origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
 
 logger.info(f"CORS origins configured: {origins}")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins in development
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include routers
+# Include routers - MAKE SURE ALL THREE ARE HERE
 app.include_router(scans.router)
 app.include_router(findings.router)
-app.include_router(jira.router)
+app.include_router(jira.router)  # This line must be present
 
 @app.get("/")
 async def root():
@@ -50,7 +50,6 @@ async def health_check():
         "message": "VulnForge API is operational"
     }
 
-# Add startup event to log configuration
 @app.on_event("startup")
 async def startup_event():
     logger.info("=" * 50)

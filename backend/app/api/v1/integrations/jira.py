@@ -13,6 +13,8 @@ from app.services.jira_service import JiraService
 router = APIRouter(prefix="/api/v1/integrations/jira", tags=["jira"])
 logger = logging.getLogger(__name__)
 
+logger.info("🔧 Jira integration router loaded successfully")
+
 
 class CreateTicketsRequest(BaseModel):
     finding_ids: List[str]
@@ -44,12 +46,15 @@ async def create_jira_tickets(
     Returns:
         List of created tickets with keys and URLs
     """
+    logger.info(f"🎫 Received request to create {len(request.finding_ids)} Jira tickets")
+    logger.info(f"Project: {request.project_key}, Issue Type: {request.issue_type}")
+    
     try:
-        # Initialize Jira service
         jira_service = JiraService()
+        logger.info(f"Jira configured: {jira_service.is_configured()}")
         
-        # Validate Jira connection
         if not jira_service.is_configured():
+            logger.warning("⚠️ Jira not configured - missing environment variables")
             raise HTTPException(
                 status_code=400,
                 detail="Jira integration not configured. Please set JIRA_URL, JIRA_EMAIL, and JIRA_API_TOKEN in environment variables."
@@ -97,10 +102,10 @@ async def create_jira_tickets(
                     'finding_id': str(finding.id)
                 })
                 
-                logger.info(f"Created ticket {ticket['key']} for finding {finding.id}")
+                logger.info(f"✅ Created ticket {ticket['key']} for finding {finding.id}")
                 
             except Exception as e:
-                logger.error(f"Failed to create ticket for finding {finding.id}: {str(e)}")
+                logger.error(f"❌ Failed to create ticket for finding {finding.id}: {str(e)}")
                 continue
         
         await db.commit()
@@ -111,6 +116,8 @@ async def create_jira_tickets(
                 detail="Failed to create any Jira tickets. Check logs for details."
             )
         
+        logger.info(f"✅ Successfully created {len(created_tickets)} Jira tickets")
+        
         return {
             'success': True,
             'tickets': created_tickets,
@@ -120,7 +127,7 @@ async def create_jira_tickets(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error creating Jira tickets: {str(e)}", exc_info=True)
+        logger.error(f"❌ Error creating Jira tickets: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to create Jira tickets: {str(e)}"
