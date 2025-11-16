@@ -47,14 +47,14 @@ const FindingDetailModal: React.FC<FindingDetailModalProps> = ({ finding, onClos
   };
 
   const linkifyText = (text: string) => {
-    if (!text) return null;
+    if (!text) return text;
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     const parts = text.split(urlRegex);
     
     return parts.map((part, index) => {
       if (part.match(urlRegex)) {
         return (
-          
+          <a
             key={index}
             href={part}
             target="_blank"
@@ -73,7 +73,6 @@ const FindingDetailModal: React.FC<FindingDetailModalProps> = ({ finding, onClos
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-        {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6 flex items-start justify-between">
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-2">
@@ -105,9 +104,7 @@ const FindingDetailModal: React.FC<FindingDetailModalProps> = ({ finding, onClos
           </button>
         </div>
 
-        {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* Asset Information */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
               <div className="flex items-center gap-2 mb-2">
@@ -136,7 +133,6 @@ const FindingDetailModal: React.FC<FindingDetailModalProps> = ({ finding, onClos
             </div>
           </div>
 
-          {/* Risk Information */}
           <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-lg p-4 border border-orange-200">
             <div className="flex items-center gap-2 mb-3">
               <TrendingUp className="w-5 h-5 text-orange-600" />
@@ -160,7 +156,6 @@ const FindingDetailModal: React.FC<FindingDetailModalProps> = ({ finding, onClos
             </div>
           </div>
 
-          {/* Description */}
           {finding.description && (
             <div>
               <div className="flex items-center gap-2 mb-3">
@@ -173,7 +168,6 @@ const FindingDetailModal: React.FC<FindingDetailModalProps> = ({ finding, onClos
             </div>
           )}
 
-          {/* Evidence */}
           {finding.evidence && (
             <div>
               <div className="flex items-center gap-2 mb-3">
@@ -186,7 +180,6 @@ const FindingDetailModal: React.FC<FindingDetailModalProps> = ({ finding, onClos
             </div>
           )}
 
-          {/* CVSS Vector */}
           {finding.cvss_vector && (
             <div>
               <div className="flex items-center gap-2 mb-3">
@@ -199,7 +192,6 @@ const FindingDetailModal: React.FC<FindingDetailModalProps> = ({ finding, onClos
             </div>
           )}
 
-          {/* Timeline */}
           <div>
             <div className="flex items-center gap-2 mb-3">
               <Calendar className="w-5 h-5 text-blue-600" />
@@ -225,12 +217,11 @@ const FindingDetailModal: React.FC<FindingDetailModalProps> = ({ finding, onClos
             </div>
           </div>
 
-          {/* External References */}
           <div>
             <h3 className="font-semibold text-gray-900 mb-3">External References</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {finding.cve_id && (
-                
+                <a
                   href={`https://nvd.nist.gov/vuln/detail/${finding.cve_id}`}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -241,7 +232,7 @@ const FindingDetailModal: React.FC<FindingDetailModalProps> = ({ finding, onClos
                 </a>
               )}
               {finding.cwe_id && (
-                
+                <a
                   href={`https://cwe.mitre.org/data/definitions/${finding.cwe_id.replace('CWE-', '')}.html`}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -255,14 +246,13 @@ const FindingDetailModal: React.FC<FindingDetailModalProps> = ({ finding, onClos
           </div>
         </div>
 
-        {/* Footer Actions */}
         <div className="bg-gray-50 p-6 border-t border-gray-200 flex items-center justify-between">
           <div className="text-sm text-gray-600">
             Finding ID: <code className="bg-gray-200 px-2 py-1 rounded font-mono text-xs">{finding.id}</code>
           </div>
           <div className="flex gap-3">
             {finding.jira_ticket_url ? (
-              
+              <a
                 href={finding.jira_ticket_url}
                 target="_blank"
                 rel="noopener noreferrer"
