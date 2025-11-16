@@ -1,7 +1,6 @@
 from typing import List, Dict, Optional
 import logging
 from atlassian import Jira
-import os
 
 from app.models.finding import Finding
 from app.models.scan import Scan
@@ -12,21 +11,43 @@ logger = logging.getLogger(__name__)
 class JiraIntegrationService:
     """Service for creating and managing Jira tickets for findings"""
 
-    def __init__(self):
-        self.jira_url = os.getenv("JIRA_URL")
-        self.jira_email = os.getenv("JIRA_EMAIL")
-        self.jira_token = os.getenv("JIRA_API_TOKEN")
-        self.enabled = all([self.jira_url, self.jira_email, self.jira_token])
+    def __init__(self, jira_config: Dict[str, Optional[str]] = None):
+        """
+        Initialize Jira service with configuration
+        
+        Args:
+            jira_config: Dictionary with jira_url, jira_email, jira_api_token, jira_enabled
+        """
+        if jira_config:
+            self.jira_url = jira_config.get("jira_url")
+            self.jira_email = jira_config.get("jira_email")
+            self.jira_token = jira_config.get("jira_api_token")
+            self.enabled = jira_config.get("jira_enabled", False)
+        else:
+            self.jira_url = None
+            self.jira_email = None
+            self.jira_token = None
+            self.enabled = False
+
+        # Validate we have all required fields if enabled
+        if self.enabled:
+            if not all([self.jira_url, self.jira_email, self.jira_token]):
+                logger.warning("Jira is enabled but missing required configuration")
+                self.enabled = False
 
         if self.enabled:
-            self.jira = Jira(
-                url=self.jira_url,
-                username=self.jira_email,
-                password=self.jira_token,
-                cloud=True
-            )
+            try:
+                self.jira = Jira(
+                    url=self.jira_url,
+                    username=self.jira_email,
+                    password=self.jira_token,
+                    cloud=True
+                )
+            except Exception as e:
+                logger.error(f"Failed to initialize Jira client: {str(e)}")
+                self.enabled = False
         else:
-            logger.warning("Jira integration not configured")
+            logger.info("Jira integration not enabled or not configured")
 
     def format_remediation_guidance(self, guidance: str) -> str:
         """
