@@ -64,11 +64,12 @@ class ScanService:
         try:
             logger.info(f"Starting processing pipeline for scan {scan_id}")
 
-            # Step 1: Parse the scan file
-            logger.info(f"Step 1/5: Parsing {scan.source_tool} file")
+            # Step 1: Parse the scan file (pass filename for auto-detection)
+            logger.info(f"Step 1/5: Parsing {scan.source_tool} file: {scan.filename}")
             parsed_data = self.parser_service.parse_file(
                 file_content,
-                scan.source_tool
+                scan.source_tool,
+                scan.filename  # Pass filename for parser
             )
             logger.info(f"✓ Parsed {parsed_data['total_findings']} findings")
 

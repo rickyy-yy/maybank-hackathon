@@ -22,8 +22,13 @@ class MarkdownParser:
         """Validate if file is Markdown format"""
         try:
             content = file_content.decode('utf-8')
-            # Check for common markdown patterns
-            return bool(re.search(r'#+\s+\w+', content))
+            # Check for common markdown patterns - be more lenient
+            has_headers = bool(re.search(r'#+\s+\w+', content))
+            has_bullets = bool(re.search(r'^[-*]\s+', content, re.MULTILINE))
+            has_text = len(content.strip()) > 20  # At least some content
+            
+            # Accept if it has headers, bullets, or just plain text
+            return has_headers or has_bullets or has_text
         except Exception as e:
             logger.error(f"Markdown validation error: {e}")
             return False

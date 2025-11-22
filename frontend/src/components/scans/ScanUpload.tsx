@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 
 const ScanUpload: React.FC = () => {
   const [uploadedScanId, setUploadedScanId] = useState<string | null>(null);
-  const [sourceTool, setSourceTool] = useState('nessus');
+  const [sourceTool, setSourceTool] = useState('auto');
   const [autoNavigate, setAutoNavigate] = useState(true);
   const navigate = useNavigate();
   
@@ -19,7 +19,6 @@ const ScanUpload: React.FC = () => {
   // Handle auto-navigation when processing completes
   useEffect(() => {
     if (statusData?.status === 'completed' && autoNavigate && uploadedScanId) {
-      // Wait 2 seconds to show success message, then navigate
       const timer = setTimeout(() => {
         navigate(`/findings?scan_id=${uploadedScanId}`);
       }, 2000);
@@ -50,6 +49,7 @@ const ScanUpload: React.FC = () => {
       'text/xml': ['.xml', '.nessus'],
       'application/json': ['.json'],
       'text/csv': ['.csv'],
+      'text/markdown': ['.md', '.markdown'],
     },
     maxFiles: 1,
     disabled: uploadMutation.isPending || (statusData?.status === 'processing'),
@@ -114,10 +114,15 @@ const ScanUpload: React.FC = () => {
             disabled={uploadMutation.isPending || statusData?.status === 'processing'}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
           >
+            <option value="auto">🔍 Auto-detect (Recommended)</option>
             <option value="nessus">Nessus (.xml, .nessus)</option>
-            <option value="burp">Burp Suite (.xml)</option>
-            <option value="nmap">Nmap (.xml)</option>
+            <option value="nmap">Nmap (.xml, .csv)</option>
+            <option value="markdown">Markdown (.md, .markdown)</option>
+            <option value="csv">Generic CSV (.csv)</option>
           </select>
+          <p className="text-xs text-gray-500 mt-1">
+            Auto-detect will automatically identify the scanner type based on file content
+          </p>
         </div>
 
         {/* Dropzone */}
@@ -151,7 +156,7 @@ const ScanUpload: React.FC = () => {
                 Drag and drop a scan file here, or click to select
               </p>
               <p className="text-sm text-gray-500">
-                Supported formats: XML, JSON, CSV (Max 100MB)
+                Supported formats: XML, JSON, CSV, Markdown (Max 100MB)
               </p>
             </>
           )}
@@ -214,11 +219,11 @@ const ScanUpload: React.FC = () => {
                       <strong>Processing Steps:</strong>
                     </p>
                     <ol className="text-xs text-blue-700 mt-1 space-y-1 list-decimal list-inside">
-                      <li>Parsing scan file format</li>
-                      <li>Extracting vulnerability data</li>
-                      <li>Calculating risk scores</li>
+                      <li>Detecting file format and parsing scan data</li>
+                      <li>Extracting vulnerability information</li>
+                      <li>Calculating risk scores and priorities</li>
                       <li>Applying remediation guidance with web search</li>
-                      <li>Prioritizing findings</li>
+                      <li>Finalizing findings database</li>
                     </ol>
                   </div>
                 </div>
@@ -310,6 +315,7 @@ const ScanUpload: React.FC = () => {
                     <ul className="text-sm text-red-700 space-y-1 list-disc list-inside">
                       <li>Verify the scan file is not corrupted</li>
                       <li>Ensure the file format matches the selected scanner tool</li>
+                      <li>Try using "Auto-detect" if you selected a specific tool</li>
                       <li>Check that the file contains valid vulnerability data</li>
                       <li>Try exporting the scan again from your scanner</li>
                     </ul>
@@ -334,17 +340,45 @@ const ScanUpload: React.FC = () => {
           <div className="flex items-start gap-3">
             <FileText className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
             <div>
-              <h3 className="font-semibold text-blue-900 mb-2">Enhanced Remediation Guidance</h3>
-              <p className="text-sm text-blue-800 mb-2">
-                Our system now includes web search capabilities to provide:
+              <h3 className="font-semibold text-blue-900 mb-2">Supported Scan Formats</h3>
+              <div className="grid grid-cols-2 gap-3 text-sm text-blue-800">
+                <div>
+                  <p className="font-semibold mb-1">🔍 Nessus</p>
+                  <ul className="text-xs space-y-0.5 list-disc list-inside">
+                    <li>.xml, .nessus files</li>
+                    <li>Complete vulnerability data</li>
+                    <li>CVSS scores & CVE mappings</li>
+                  </ul>
+                </div>
+                <div>
+                  <p className="font-semibold mb-1">🌐 Nmap</p>
+                  <ul className="text-xs space-y-0.5 list-disc list-inside">
+                    <li>.xml and .csv files</li>
+                    <li>Port scans & service detection</li>
+                    <li>Vulnerability scripts</li>
+                  </ul>
+                </div>
+                <div>
+                  <p className="font-semibold mb-1">📄 Markdown</p>
+                  <ul className="text-xs space-y-0.5 list-disc list-inside">
+                    <li>.md, .markdown files</li>
+                    <li>Human-readable reports</li>
+                    <li>Flexible formatting</li>
+                  </ul>
+                </div>
+                <div>
+                  <p className="font-semibold mb-1">📊 Generic CSV</p>
+                  <ul className="text-xs space-y-0.5 list-disc list-inside">
+                    <li>.csv files from any scanner</li>
+                    <li>Custom export formats</li>
+                    <li>Flexible column mapping</li>
+                  </ul>
+                </div>
+              </div>
+              <p className="text-sm text-blue-700 mt-3">
+                💡 <strong>Tip:</strong> Use "Auto-detect" for best results. The system will 
+                automatically identify your scan format!
               </p>
-              <ul className="text-sm text-blue-700 space-y-1 list-disc list-inside">
-                <li>Latest security advisories and patches</li>
-                <li>Real-time CVE information from NVD</li>
-                <li>Vendor-specific remediation guides</li>
-                <li>OWASP best practices and cheat sheets</li>
-                <li>Current exploit availability status</li>
-              </ul>
             </div>
           </div>
         </div>

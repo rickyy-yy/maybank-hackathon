@@ -1,0 +1,76 @@
+{
+  "name": "Maybank Hackathon Dev Container",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.11"
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "18"
+    },
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
+    "ghcr.io/devcontainers/features/git:1": {}
+  },
+  "forwardPorts": [8000, 5173, 5432, 6379],
+  "portsAttributes": {
+    "8000": {
+      "label": "Backend API",
+      "onAutoForward": "notify"
+    },
+    "5173": {
+      "label": "Frontend Dev Server",
+      "onAutoForward": "notify"
+    },
+    "5432": {
+      "label": "PostgreSQL",
+      "onAutoForward": "silent"
+    },
+    "6379": {
+      "label": "Redis",
+      "onAutoForward": "silent"
+    }
+  },
+  "postCreateCommand": "bash /tmp/post-create.sh || (cd /workspace && bash .devcontainer/post-create.sh 2>/dev/null || echo 'Post-create script completed with warnings')",
+  "postStartCommand": "bash /tmp/start-services.sh || (cd /workspace && bash .devcontainer/start-services.sh 2>/dev/null || true)",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-python.black-formatter",
+        "charliermarsh.ruff",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss",
+        "ms-vscode.vscode-typescript-next"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/bin/python3",
+        "python.formatting.provider": "black",
+        "python.linting.enabled": true,
+        "python.linting.ruffEnabled": true,
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+          "source.fixAll.eslint": "explicit",
+          "source.organizeImports": "explicit"
+        },
+        "files.exclude": {
+          "**/__pycache__": true,
+          "**/*.pyc": true,
+          "**/node_modules": true
+        }
+      }
+    }
+  },
+  "remoteUser": "vscode",
+  "workspaceFolder": "/workspace",
+  "remoteEnv": {
+    "DATABASE_URL": "postgresql+asyncpg://vulnforge:password@localhost:5432/vulnforge",
+    "REDIS_URL": "redis://localhost:6379/0",
+    "PYTHONPATH": "/workspace/backend"
+  }
+}
+

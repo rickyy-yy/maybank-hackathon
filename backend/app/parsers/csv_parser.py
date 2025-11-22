@@ -67,7 +67,14 @@ class GenericCSVParser:
                 continue
 
         if not findings:
-            raise ValueError("No valid vulnerability findings found in CSV")
+            # Log the headers for debugging
+            if reader.fieldnames:
+                logger.warning(f"CSV Headers found: {reader.fieldnames}")
+            raise ValueError(
+                "No valid vulnerability findings found in CSV. "
+                "Please ensure your CSV has columns like: title/name/vulnerability, "
+                "severity/risk, host/ip/target, and optionally: port, cve, cvss, description"
+            )
 
         statistics = self._calculate_statistics(findings)
 
@@ -89,23 +96,61 @@ class GenericCSVParser:
     def _parse_row(self, row: Dict, row_num: int) -> Optional[Dict]:
         """Parse a single CSV row into a finding"""
         # Normalize column names (case-insensitive)
-        normalized_row = {k.lower().strip(): v for k, v in row.items()}
+        normalized_row = {k.lower().strip(): v for k, v in row.items() if k}
 
         # Extract common fields with multiple possible column names
-        title = self._get_value(normalized_row, ['title', 'name', 'vulnerability', 'issue', 'plugin name', 'finding'])
-        description = self._get_value(normalized_row, ['description', 'details', 'synopsis', 'summary'])
-        severity = self._get_value(normalized_row, ['severity', 'risk', 'priority', 'level', 'rating'])
-        host = self._get_value(normalized_row, ['host', 'ip', 'target', 'hostname', 'asset', 'ip address'])
-        port = self._get_value(normalized_row, ['port', 'port/protocol'])
-        protocol = self._get_value(normalized_row, ['protocol', 'proto'])
-        service = self._get_value(normalized_row, ['service', 'service name'])
-        cve = self._get_value(normalized_row, ['cve', 'cve id', 'cve-id', 'cve_id'])
-        cvss = self._get_value(normalized_row, ['cvss', 'cvss score', 'cvss_score', 'base score'])
-        solution = self._get_value(normalized_row, ['solution', 'remediation', 'fix', 'recommendation'])
+        title = self._get_value(normalized_row, [
+            'title', 'name', 'vulnerability', 'issue', 'plugin name', 'finding',
+            'vuln_name', 'vulnerability_name', 'issue_name'
+        ])
+        
+        description = self._get_value(normalized_row, [
+            'description', 'details', 'synopsis', 'summary', 'desc',
+            'issue_description', 'vulnerability_description'
+        ])
+        
+        severity = self._get_value(normalized_row, [
+            'severity', 'risk', 'priority', 'level', 'rating', 'impact',
+            'risk_rating', 'threat_level'
+        ])
+        
+        host = self._get_value(normalized_row, [
+            'host', 'ip', 'target', 'hostname', 'asset', 'ip address',
+            'target_ip', 'host_ip', 'ip_address', 'server'
+        ])
+        
+        port = self._get_value(normalized_row, [
+            'port', 'port/protocol', 'service_port', 'target_port'
+        ])
+        
+        protocol = self._get_value(normalized_row, [
+            'protocol', 'proto', 'transport'
+        ])
+        
+        service = self._get_value(normalized_row, [
+            'service', 'service name', 'service_name', 'application'
+        ])
+        
+        cve = self._get_value(normalized_row, [
+            'cve', 'cve id', 'cve-id', 'cve_id', 'cve_ids', 'cves'
+        ])
+        
+        cvss = self._get_value(normalized_row, [
+            'cvss', 'cvss score', 'cvss_score', 'base score', 'cvss_base_score'
+        ])
+        
+        solution = self._get_value(normalized_row, [
+            'solution', 'remediation', 'fix', 'recommendation', 'mitigation'
+        ])
 
-        if not title:
-            logger.warning(f"Row {row_num} missing title, skipping")
+        # Require at least a title or CVE to consider it a valid finding
+        if not title and not cve:
+            logger.debug(f"Row {row_num} missing both title and CVE, skipping")
             return None
+
+        # If we have CVE but no title, use CVE as title
+        if not title and cve:
+            title = f"Vulnerability: {cve}"
 
         # Normalize severity
         severity_normalized = self._normalize_severity(severity)
@@ -116,10 +161,13 @@ class GenericCSVParser:
         # Parse port
         port_number = self._parse_port(port)
 
+        # Clean CVE - handle multiple CVEs
+        cve_id = self._clean_cve(cve)
+
         finding = {
             'plugin_id': f"csv-{row_num}",
             'title': title[:255] if title else f"Finding from row {row_num}",
-            'description': description or title,
+            'description': description or title or f"Vulnerability finding from CSV row {row_num}",
             'severity': severity_normalized,
             'affected_host': host or 'unknown',
             'port': port_number,
@@ -127,7 +175,7 @@ class GenericCSVParser:
             'service': service or 'unknown',
             'host_properties': {'ip': host} if host else {},
             'cvss_score': cvss_score,
-            'cve_id': self._clean_cve(cve),
+            'cve_id': cve_id,
             'cwe_id': None,
             'evidence': None,
             'solution': solution
@@ -183,14 +231,15 @@ class GenericCSVParser:
         return None
 
     def _clean_cve(self, cve: Optional[str]) -> Optional[str]:
-        """Clean and validate CVE ID"""
+        """Clean and validate CVE ID - take first one if multiple"""
         if not cve:
             return None
 
-        # Extract CVE pattern
-        match = re.search(r'CVE-\d{4}-\d+', cve, re.IGNORECASE)
-        if match:
-            return match.group(0).upper()
+        # Extract all CVE patterns
+        matches = re.findall(r'CVE-\d{4}-\d+', cve, re.IGNORECASE)
+        if matches:
+            # Return the first CVE found
+            return matches[0].upper()
 
         return None
 

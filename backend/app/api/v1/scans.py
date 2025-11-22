@@ -80,18 +80,18 @@ async def get_scan(
 async def upload_scan(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    source_tool: str = "nessus",
+    source_tool: str = "auto",
     db: AsyncSession = Depends(get_db)
 ):
     """
     Upload and process vulnerability scan file
     
     Args:
-        file: Scan file (XML, JSON, CSV)
-        source_tool: Scanner tool name (nessus, burp, nmap)
+        file: Scan file (XML, JSON, CSV, Markdown)
+        source_tool: Scanner tool name (nessus, nmap, markdown, csv, auto)
     """
     # Validate file extension
-    allowed_extensions = {'.xml', '.nessus', '.json', '.csv'}
+    allowed_extensions = {'.xml', '.nessus', '.json', '.csv', '.md', '.markdown'}
     file_ext = os.path.splitext(file.filename)[1].lower()
     
     if file_ext not in allowed_extensions:
