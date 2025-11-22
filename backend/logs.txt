@@ -1,0 +1,45 @@
+vulnforge-api  | INFO:     Will watch for changes in these directories: ['/app']
+vulnforge-api  | INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+vulnforge-api  | INFO:     Started reloader process [1] using WatchFiles
+vulnforge-api  | INFO:app.api.v1.jira:CORS origins configured: ['http://localhost:5173', 'http://127.0.0.1:5173']
+vulnforge-api  | Process SpawnProcess-1:
+vulnforge-api  | Traceback (most recent call last):
+vulnforge-api  |   File "/usr/local/lib/python3.11/multiprocessing/process.py", line 314, in _bootstrap
+vulnforge-api  |     self.run()
+vulnforge-api  |   File "/usr/local/lib/python3.11/multiprocessing/process.py", line 108, in run
+vulnforge-api  |     self._target(*self._args, **self._kwargs)
+vulnforge-api  |   File "/usr/local/lib/python3.11/site-packages/uvicorn/_subprocess.py", line 78, in subprocess_started
+vulnforge-api  |     target(sockets=sockets)
+vulnforge-api  |   File "/usr/local/lib/python3.11/site-packages/uvicorn/server.py", line 62, in run
+vulnforge-api  |     return asyncio.run(self.serve(sockets=sockets))
+vulnforge-api  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+vulnforge-api  |   File "/usr/local/lib/python3.11/asyncio/runners.py", line 190, in run
+vulnforge-api  |     return runner.run(main)
+vulnforge-api  |            ^^^^^^^^^^^^^^^^
+vulnforge-api  |   File "/usr/local/lib/python3.11/asyncio/runners.py", line 118, in run
+vulnforge-api  |     return self._loop.run_until_complete(task)
+vulnforge-api  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+vulnforge-api  |   File "uvloop/loop.pyx", line 1518, in uvloop.loop.Loop.run_until_complete
+vulnforge-api  |   File "/usr/local/lib/python3.11/site-packages/uvicorn/server.py", line 69, in serve
+vulnforge-api  |     config.load()
+vulnforge-api  |   File "/usr/local/lib/python3.11/site-packages/uvicorn/config.py", line 458, in load
+vulnforge-api  |     self.loaded_app = import_from_string(self.app)
+vulnforge-api  |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+vulnforge-api  |   File "/usr/local/lib/python3.11/site-packages/uvicorn/importer.py", line 21, in import_from_string
+vulnforge-api  |     module = importlib.import_module(module_str)
+vulnforge-api  |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+vulnforge-api  |   File "/usr/local/lib/python3.11/importlib/__init__.py", line 126, in import_module
+vulnforge-api  |     return _bootstrap._gcd_import(name[level:], package, level)
+vulnforge-api  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+vulnforge-api  |   File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
+vulnforge-api  |   File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
+vulnforge-api  |   File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
+vulnforge-api  |   File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
+vulnforge-api  |   File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+vulnforge-api  |   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+vulnforge-api  |   File "/app/app/main.py", line 10, in <module>
+vulnforge-api  |     from app.api.v1 import scans, findings, jira, settings
+vulnforge-api  |   File "/app/app/api/v1/jira.py", line 34, in <module>
+vulnforge-api  |     app.include_router(jira.router)
+vulnforge-api  |                        ^^^^^^^^^^^
+vulnforge-api  | AttributeError: partially initialized module 'app.api.v1.jira' has no attribute 'router' (most likely due to a circular import)

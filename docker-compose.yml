@@ -42,9 +42,9 @@ services:
       ENVIRONMENT: development
       CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
       NVD_API_KEY: ${NVD_API_KEY:-}
-      JIRA_URL: ${JIRA_URL:-}
-      JIRA_EMAIL: ${JIRA_EMAIL:-}
-      JIRA_API_TOKEN: ${JIRA_API_TOKEN:-}
+      #JIRA_URL: ${JIRA_URL:-}
+      #JIRA_EMAIL: ${JIRA_EMAIL:-}
+      #JIRA_API_TOKEN: ${JIRA_API_TOKEN:-}
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     ports:

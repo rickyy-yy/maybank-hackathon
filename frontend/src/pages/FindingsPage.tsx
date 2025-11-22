@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Filter, Download, RefreshCw } from 'lucide-react';
 import { useFindings } from '../hooks/useFindings';
 import FindingsTable from '../components/findings/FindingsTable';
+import api from '../services/api';
 
 const FindingsPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -23,7 +24,6 @@ const FindingsPage: React.FC = () => {
     const newFilters = { ...filters, [key]: value };
     setFilters(newFilters);
     
-    // Update URL params
     const newParams = new URLSearchParams(searchParams);
     if (value) {
       newParams.set(key, value);
@@ -31,6 +31,25 @@ const FindingsPage: React.FC = () => {
       newParams.delete(key);
     }
     setSearchParams(newParams);
+  };
+
+  const handleCreateTickets = async (findingIds: string[]) => {
+    try {
+      const response = await api.post('/api/v1/integrations/jira/create-tickets', {
+        finding_ids: findingIds,
+      });
+
+      if (response.data.success) {
+        alert(
+          `Successfully created ${response.data.created} ticket(s).\n` +
+          (response.data.failed > 0 ? `Failed: ${response.data.failed}` : '')
+        );
+        refetch();
+      }
+    } catch (error: any) {
+      const message = error.response?.data?.detail || 'Failed to create Jira tickets';
+      alert(`Error: ${message}`);
+    }
   };
 
   const handleExportCSV = () => {
@@ -171,7 +190,7 @@ const FindingsPage: React.FC = () => {
         <FindingsTable
           findings={findings}
           onSelectFinding={(finding) => console.log('Selected:', finding)}
-          onCreateTicket={(ids) => console.log('Create tickets for:', ids)}
+          onCreateTicket={handleCreateTickets}
         />
       ) : (
         <div className="card text-center py-12">
