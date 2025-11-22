@@ -1,20 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Upload, FileText, X, AlertCircle, CheckCircle, Loader2, Trash2, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-interface FileWithPreview extends File {
-  preview?: string;
-  status?: 'pending' | 'uploading' | 'processing' | 'success' | 'error';
+interface UploadFile {
+  id: string;
+  file: File;
+  status: 'pending' | 'uploading' | 'processing' | 'success' | 'error';
   scanId?: string;
   error?: string;
-  uploadProgress?: number;
+  progress: number;
 }
 
 const MultiFileUpload: React.FC = () => {
-  const [files, setFiles] = useState<FileWithPreview[]>([]);
+  const [files, setFiles] = useState<UploadFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [batchId, setBatchId] = useState<string | null>(null);
+  const [batchName, setBatchName] = useState<string>('');
   const navigate = useNavigate();
+
+  const updateFileState = useCallback((id: string, updates: Partial<UploadFile>) => {
+    setFiles(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
+  }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: {
@@ -24,20 +31,27 @@ const MultiFileUpload: React.FC = () => {
       'text/markdown': ['.md', '.markdown'],
     },
     disabled: isUploading,
+    multiple: true, // Always allow multiple files
     onDrop: (acceptedFiles) => {
-      const newFiles: FileWithPreview[] = acceptedFiles.map(file => Object.assign(file, {
-        preview: file.name,
-        status: 'pending' as const
+      const newFiles: UploadFile[] = acceptedFiles.map(file => ({
+        id: `${file.name}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        file,
+        status: 'pending',
+        progress: 0
       }));
       setFiles(prev => [...prev, ...newFiles]);
     },
   });
 
-  const removeFile = (fileName: string) => {
-    setFiles(files.filter(f => f.name !== fileName));
+  const removeFile = (id: string) => {
+    setFiles(prev => prev.filter(f => f.id !== id));
   };
 
-  const pollScanStatus = async (scanId: string, fileName: string, maxAttempts: number = 60): Promise<boolean> => {
+  const pollScanStatus = async (
+    scanId: string, 
+    fileId: string, 
+    maxAttempts: number = 60
+  ): Promise<boolean> => {
     const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
     
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -50,24 +64,24 @@ const MultiFileUpload: React.FC = () => {
 
         const status = await response.json();
         
+        // Update progress smoothly - from 30% to 95% over polling attempts
+        const baseProgress = 30;
+        const progressRange = 65; // 95 - 30
+        const currentProgress = baseProgress + Math.floor((attempt / maxAttempts) * progressRange);
+        updateFileState(fileId, { progress: Math.min(currentProgress, 95) });
+        
         if (status.status === 'completed' || status.processed === true) {
+          // Set to 100% on completion
+          updateFileState(fileId, { progress: 100 });
           return true;
         } else if (status.status === 'failed') {
           throw new Error(status.error || 'Processing failed');
         }
         
-        // Update progress indicator
-        setFiles(prev => prev.map(f => 
-          f.name === fileName 
-            ? { ...f, uploadProgress: Math.min(50 + (attempt * 2), 95) }
-            : f
-        ));
-        
         // Wait 2 seconds before next check
         await new Promise(resolve => setTimeout(resolve, 2000));
       } catch (error) {
         console.error('Status poll error:', error);
-        // Continue polling unless it's the last attempt
         if (attempt === maxAttempts - 1) {
           throw error;
         }
@@ -78,32 +92,60 @@ const MultiFileUpload: React.FC = () => {
   };
 
   const uploadFiles = async () => {
-    if (files.length === 0) return;
+    const pendingFiles = files.filter(f => f.status === 'pending');
+    if (pendingFiles.length === 0) return;
 
     setIsUploading(true);
-    const uploadedScanIds: string[] = [];
-
-    // Upload files sequentially
-    for (const file of files) {
+    
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    
+    // Create a batch for this upload session
+    let currentBatchId = batchId;
+    if (!currentBatchId) {
       try {
-        // Update status to uploading
-        setFiles(prev => prev.map(f => 
-          f.name === file.name ? { ...f, status: 'uploading' as const, uploadProgress: 10 } : f
-        ));
+        const batchResponse = await fetch(`${API_URL}/api/v1/scans/batches`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            name: batchName || `Upload ${new Date().toLocaleString()}` 
+          }),
+        });
+        
+        if (batchResponse.ok) {
+          const batchData = await batchResponse.json();
+          currentBatchId = batchData.batch_id;
+          setBatchId(currentBatchId);
+        }
+      } catch (error) {
+        console.error('Failed to create batch:', error);
+      }
+    }
+
+    for (const uploadFile of pendingFiles) {
+      try {
+        // Start uploading - show progress
+        updateFileState(uploadFile.id, { status: 'uploading', progress: 10 });
 
         const formData = new FormData();
-        formData.append('file', file);
-
-        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+        formData.append('file', uploadFile.file);
         
-        // Upload with auto-detect
-        const uploadResponse = await fetch(
-          `${API_URL}/api/v1/scans/upload?source_tool=auto`,
-          {
-            method: 'POST',
-            body: formData,
-          }
-        );
+        // Simulate upload progress (10% to 25%)
+        updateFileState(uploadFile.id, { progress: 15 });
+        
+        // Include batch_id in the upload URL
+        let uploadUrl = `${API_URL}/api/v1/scans/upload?source_tool=auto`;
+        if (currentBatchId) {
+          uploadUrl += `&batch_id=${currentBatchId}`;
+        }
+        
+        updateFileState(uploadFile.id, { progress: 20 });
+        
+        const uploadResponse = await fetch(uploadUrl, {
+          method: 'POST',
+          body: formData,
+        });
+
+        updateFileState(uploadFile.id, { progress: 25 });
 
         if (!uploadResponse.ok) {
           const errorData = await uploadResponse.json();
@@ -113,51 +155,33 @@ const MultiFileUpload: React.FC = () => {
         const uploadData = await uploadResponse.json();
         const scanId = uploadData.scan_id;
         
-        // Update status to processing
-        setFiles(prev => prev.map(f => 
-          f.name === file.name 
-            ? { ...f, status: 'processing' as const, scanId, uploadProgress: 30 } 
-            : f
-        ));
+        // Upload complete, now processing starts
+        updateFileState(uploadFile.id, { 
+          status: 'processing', 
+          scanId, 
+          progress: 30 
+        });
 
-        // Poll for processing completion
-        await pollScanStatus(scanId, file.name);
+        // Poll for processing status with progress updates
+        await pollScanStatus(scanId, uploadFile.id);
         
-        // Update status to success
-        setFiles(prev => prev.map(f => 
-          f.name === file.name 
-            ? { ...f, status: 'success' as const, uploadProgress: 100 } 
-            : f
-        ));
-        
-        uploadedScanIds.push(scanId);
+        // Mark as success
+        updateFileState(uploadFile.id, { status: 'success', progress: 100 });
 
       } catch (error) {
-        console.error(`Error uploading ${file.name}:`, error);
-        
-        // Update status to error
-        setFiles(prev => prev.map(f => 
-          f.name === file.name 
-            ? { 
-                ...f, 
-                status: 'error' as const, 
-                error: error instanceof Error ? error.message : 'Upload failed',
-                uploadProgress: 0
-              } 
-            : f
-        ));
+        console.error(`Error uploading ${uploadFile.file.name}:`, error);
+        updateFileState(uploadFile.id, { 
+          status: 'error', 
+          error: error instanceof Error ? error.message : 'Upload failed',
+          progress: 0
+        });
       }
     }
 
     setIsUploading(false);
-
-    // If all successful, show option to view findings
-    if (uploadedScanIds.length === files.length) {
-      console.log('All files uploaded successfully:', uploadedScanIds);
-    }
   };
 
-  const getStatusIcon = (status?: string) => {
+  const getStatusIcon = (status: UploadFile['status']) => {
     switch (status) {
       case 'uploading':
         return <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />;
@@ -172,7 +196,7 @@ const MultiFileUpload: React.FC = () => {
     }
   };
 
-  const getStatusColor = (status?: string) => {
+  const getStatusColor = (status: UploadFile['status']) => {
     switch (status) {
       case 'uploading':
         return 'border-blue-300 bg-blue-50';
@@ -187,12 +211,25 @@ const MultiFileUpload: React.FC = () => {
     }
   };
 
-  const getStatusText = (file: FileWithPreview) => {
+  const getProgressBarColor = (status: UploadFile['status']) => {
+    switch (status) {
+      case 'uploading':
+        return 'bg-blue-600';
+      case 'processing':
+        return 'bg-purple-600';
+      case 'success':
+        return 'bg-green-600';
+      default:
+        return 'bg-gray-400';
+    }
+  };
+
+  const getStatusText = (file: UploadFile) => {
     switch (file.status) {
       case 'uploading':
-        return 'Uploading...';
+        return `Uploading... ${file.progress}%`;
       case 'processing':
-        return `Processing... ${file.uploadProgress || 0}%`;
+        return `Processing... ${file.progress}%`;
       case 'success':
         return 'Completed';
       case 'error':
@@ -202,9 +239,11 @@ const MultiFileUpload: React.FC = () => {
     }
   };
 
+  const pendingCount = files.filter(f => f.status === 'pending').length;
   const allFilesSuccessful = files.length > 0 && files.every(f => f.status === 'success');
   const hasErrors = files.some(f => f.status === 'error');
   const successCount = files.filter(f => f.status === 'success').length;
+  const activeCount = files.filter(f => f.status === 'uploading' || f.status === 'processing').length;
 
   return (
     <div className="space-y-6">
@@ -214,9 +253,27 @@ const MultiFileUpload: React.FC = () => {
           <div>
             <h2 className="text-xl font-semibold">Upload Scan Files</h2>
             <p className="text-sm text-gray-600 mt-1">
-              Drag and drop multiple files • Auto-detection enabled
+              Drag and drop multiple files • Auto-detection enabled • Duplicate detection
             </p>
           </div>
+        </div>
+
+        {/* Batch Name Input */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Batch Name (Optional)
+          </label>
+          <input
+            type="text"
+            value={batchName}
+            onChange={(e) => setBatchName(e.target.value)}
+            placeholder="e.g., Weekly Scan - Nov 2025"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            disabled={isUploading}
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Group these uploads together for easier tracking and duplicate detection
+          </p>
         </div>
 
         {/* Dropzone */}
@@ -240,7 +297,7 @@ const MultiFileUpload: React.FC = () => {
                 Drag and drop scan files here, or click to select
               </p>
               <p className="text-sm text-gray-500">
-                Supports: XML, JSON, CSV, Markdown • Unlimited files • Auto-detection
+                Supports: XML, JSON, CSV, Markdown • Multiple files • Auto-detection
               </p>
             </>
           )}
@@ -254,7 +311,7 @@ const MultiFileUpload: React.FC = () => {
             <h3 className="text-lg font-semibold">
               Files ({files.length})
             </h3>
-            {!isUploading && files.length > 0 && (
+            {!isUploading && (
               <button
                 onClick={() => setFiles([])}
                 className="text-sm text-red-600 hover:text-red-800 flex items-center gap-1"
@@ -266,33 +323,34 @@ const MultiFileUpload: React.FC = () => {
           </div>
 
           <div className="space-y-2 mb-4">
-            {files.map((file, index) => (
+            {files.map((uploadFile) => (
               <div
-                key={index}
-                className={`flex items-center gap-3 p-3 rounded-lg border ${getStatusColor(file.status)}`}
+                key={uploadFile.id}
+                className={`flex items-center gap-3 p-3 rounded-lg border ${getStatusColor(uploadFile.status)}`}
               >
-                {getStatusIcon(file.status)}
+                {getStatusIcon(uploadFile.status)}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate">
-                    {file.name}
+                    {uploadFile.file.name}
                   </p>
                   <div className="flex items-center gap-2 text-xs text-gray-500">
-                    <span>{(file.size / 1024).toFixed(2)} KB</span>
+                    <span>{(uploadFile.file.size / 1024).toFixed(2)} KB</span>
                     <span>•</span>
-                    <span>{getStatusText(file)}</span>
+                    <span>{getStatusText(uploadFile)}</span>
                   </div>
-                  {file.status === 'processing' && file.uploadProgress && (
-                    <div className="mt-2 w-full bg-gray-200 rounded-full h-1.5">
+                  {/* Progress bar - show for uploading and processing */}
+                  {(uploadFile.status === 'uploading' || uploadFile.status === 'processing') && (
+                    <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
                       <div 
-                        className="bg-purple-600 h-1.5 rounded-full transition-all duration-300" 
-                        style={{ width: `${file.uploadProgress}%` }}
+                        className={`h-2 rounded-full transition-all duration-500 ease-out ${getProgressBarColor(uploadFile.status)}`}
+                        style={{ width: `${uploadFile.progress}%` }}
                       />
                     </div>
                   )}
                 </div>
-                {file.status === 'pending' && !isUploading && (
+                {uploadFile.status === 'pending' && !isUploading && (
                   <button
-                    onClick={() => removeFile(file.name)}
+                    onClick={() => removeFile(uploadFile.id)}
                     className="text-gray-400 hover:text-red-600"
                   >
                     <X className="w-5 h-5" />
@@ -303,19 +361,19 @@ const MultiFileUpload: React.FC = () => {
           </div>
 
           {/* Upload Button */}
-          {!allFilesSuccessful && (
+          {!allFilesSuccessful && pendingCount > 0 && (
             <button
               onClick={uploadFiles}
-              disabled={isUploading || files.every(f => f.status !== 'pending')}
+              disabled={isUploading}
               className="w-full px-4 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium"
             >
               {isUploading ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  Processing {files.filter(f => f.status === 'uploading' || f.status === 'processing').length} / {files.length}
+                  Processing {activeCount} of {pendingCount}
                 </>
               ) : (
-                `Upload ${files.filter(f => f.status === 'pending').length} File${files.filter(f => f.status === 'pending').length !== 1 ? 's' : ''}`
+                `Upload ${pendingCount} File${pendingCount !== 1 ? 's' : ''}`
               )}
             </button>
           )}
@@ -333,14 +391,18 @@ const MultiFileUpload: React.FC = () => {
               </div>
               <div className="flex gap-3">
                 <button
-                  onClick={() => navigate('/findings')}
+                  onClick={() => navigate(batchId ? `/findings?batch_id=${batchId}` : '/findings')}
                   className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 font-medium"
                 >
                   View All Findings
                   <ArrowRight className="w-4 h-4" />
                 </button>
                 <button
-                  onClick={() => setFiles([])}
+                  onClick={() => {
+                    setFiles([]);
+                    setBatchId(null);
+                    setBatchName('');
+                  }}
                   className="px-4 py-3 bg-white text-gray-700 rounded-md hover:bg-gray-50 transition-colors border border-gray-300"
                 >
                   Upload More
@@ -350,7 +412,7 @@ const MultiFileUpload: React.FC = () => {
           )}
 
           {/* Partial Success/Error */}
-          {hasErrors && !isUploading && (
+          {hasErrors && !isUploading && successCount > 0 && (
             <div className="mt-4 bg-orange-50 border border-orange-200 rounded-lg p-4">
               <div className="flex items-center gap-2">
                 <AlertCircle className="w-5 h-5 text-orange-600" />
@@ -377,10 +439,11 @@ const MultiFileUpload: React.FC = () => {
               <h3 className="font-semibold text-blue-900 mb-2">Multi-File Upload</h3>
               <ul className="text-sm text-blue-800 space-y-1">
                 <li>✨ <strong>Auto-Detection:</strong> Automatically identifies file format</li>
-                <li>📁 <strong>Unlimited Files:</strong> Upload as many files as you need</li>
+                <li>📁 <strong>Multiple Files:</strong> Upload as many files as you need at once</li>
                 <li>🎯 <strong>Supported Formats:</strong> Nessus, Nmap, CSV, Markdown, JSON</li>
-                <li>⚡ <strong>Real-Time Processing:</strong> Track progress for each file</li>
+                <li>⚡ <strong>Real-Time Progress:</strong> Track upload and processing for each file</li>
                 <li>🔄 <strong>Error Recovery:</strong> Failed files don't block others</li>
+                <li>🔍 <strong>Duplicate Detection:</strong> Automatic within batches</li>
               </ul>
             </div>
           </div>
