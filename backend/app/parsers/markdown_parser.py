@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 
 class MarkdownParser:
-    """Parse vulnerability reports in Markdown format"""
+    """Parse vulnerability reports in Markdown format - supports code review reports"""
 
     SEVERITY_MAP = {
         'critical': 'CRITICAL',
@@ -40,18 +40,24 @@ class MarkdownParser:
         # Try different parsing strategies
         findings = []
 
-        # Strategy 1: Parse structured vulnerability sections
-        structured_findings = self._parse_structured_format(content)
-        if structured_findings:
-            findings.extend(structured_findings)
+        # Strategy 1: Parse code review format (like the provided report)
+        code_review_findings = self._parse_code_review_format(content)
+        if code_review_findings:
+            findings.extend(code_review_findings)
 
-        # Strategy 2: Parse table format
+        # Strategy 2: Parse structured vulnerability sections
+        if not findings:
+            structured_findings = self._parse_structured_format(content)
+            if structured_findings:
+                findings.extend(structured_findings)
+
+        # Strategy 3: Parse table format
         if not findings:
             table_findings = self._parse_table_format(content)
             if table_findings:
                 findings.extend(table_findings)
 
-        # Strategy 3: Parse simple list format
+        # Strategy 4: Parse simple list format
         if not findings:
             list_findings = self._parse_list_format(content)
             if list_findings:
@@ -62,14 +68,123 @@ class MarkdownParser:
 
         statistics = self._calculate_statistics(findings)
 
+        # Extract target domain if present
+        target_match = re.search(r'\*\*Domain\*\*:\s*([^\n]+)', content)
+        scan_name = f"Security Review - {target_match.group(1).strip()}" if target_match else "Markdown Vulnerability Report"
+
         return {
-            'scan_name': 'Markdown Vulnerability Report',
+            'scan_name': scan_name,
             'scan_date': datetime.utcnow(),
             'total_findings': len(findings),
             'findings': findings,
             'statistics': statistics,
             'metadata': {'scanner': 'markdown', 'format': 'md'}
         }
+
+    def _parse_code_review_format(self, content: str) -> List[Dict]:
+        """Parse code review report format (## Vulnerability Details section)"""
+        findings = []
+        
+        # Look for vulnerability details section
+        vuln_section_match = re.search(r'##\s+Vulnerability Details(.+?)(?=##|$)', content, re.DOTALL | re.IGNORECASE)
+        if not vuln_section_match:
+            return findings
+        
+        vuln_section = vuln_section_match.group(1)
+        
+        # Split by ### headers (individual vulnerabilities)
+        vuln_blocks = re.split(r'###\s+\d+\.?\s*', vuln_section)
+        
+        for idx, block in enumerate(vuln_blocks, start=1):
+            if not block.strip():
+                continue
+            
+            # Extract title from first line
+            lines = block.strip().split('\n')
+            title = lines[0].strip() if lines else f"Vulnerability {idx}"
+            
+            finding = {
+                'plugin_id': f"md-review-{idx}",
+                'title': title,
+                'description': '',
+                'severity': 'INFO',
+                'affected_host': 'unknown',
+                'port': None,
+                'protocol': None,
+                'service': 'unknown',
+                'host_properties': {},
+                'cvss_score': None,
+                'cve_id': None,
+                'cwe_id': None,
+                'evidence': None,
+                'solution': None
+            }
+            
+            # Parse metadata fields
+            for line in lines[1:]:
+                line_lower = line.lower().strip()
+                
+                # Extract Severity
+                if line_lower.startswith('**severity'):
+                    severity_match = re.search(r'(critical|high|medium|low|info)', line_lower)
+                    if severity_match:
+                        finding['severity'] = self.SEVERITY_MAP.get(severity_match.group(1), 'INFO')
+                
+                # Extract CWE
+                elif line_lower.startswith('**cwe'):
+                    cwe_match = re.search(r'CWE-\d+', line, re.IGNORECASE)
+                    if cwe_match:
+                        finding['cwe_id'] = cwe_match.group(0).upper()
+                
+                # Extract CVSS Score
+                elif line_lower.startswith('**cvss'):
+                    cvss_match = re.search(r'(\d+\.?\d*)', line)
+                    if cvss_match:
+                        finding['cvss_score'] = float(cvss_match.group(1))
+                
+                # Extract File (use as affected_host for code reviews)
+                elif line_lower.startswith('**file'):
+                    file_match = re.search(r'`([^`]+)`', line)
+                    if file_match:
+                        finding['affected_host'] = file_match.group(1)
+                
+                # Extract Git Commit
+                elif line_lower.startswith('**git commit'):
+                    commit_match = re.search(r'([a-f0-9]{40})', line)
+                    if commit_match:
+                        finding['host_properties']['git_commit'] = commit_match.group(1)
+            
+            # Extract Description section
+            desc_match = re.search(r'####\s+Description\s*\n(.+?)(?=####|$)', block, re.DOTALL)
+            if desc_match:
+                finding['description'] = desc_match.group(1).strip()
+            
+            # Extract Vulnerable Code section as evidence
+            code_match = re.search(r'####\s+Vulnerable Code\s*\n```[\w]*\n(.+?)\n```', block, re.DOTALL)
+            if code_match:
+                finding['evidence'] = code_match.group(1).strip()
+            
+            # Extract Impact section (add to description)
+            impact_match = re.search(r'####\s+Impact\s*\n(.+?)(?=####|$)', block, re.DOTALL)
+            if impact_match:
+                impact = impact_match.group(1).strip()
+                if finding['description']:
+                    finding['description'] += f"\n\n**Impact:**\n{impact}"
+                else:
+                    finding['description'] = f"**Impact:**\n{impact}"
+            
+            # Extract Remediation section as solution
+            remedy_match = re.search(r'####\s+Remediation\s*\n(.+?)(?=####|---|$)', block, re.DOTALL)
+            if remedy_match:
+                finding['solution'] = remedy_match.group(1).strip()
+            
+            # If no description, use title
+            if not finding['description']:
+                finding['description'] = title
+            
+            findings.append(finding)
+        
+        return findings
 
     def _parse_structured_format(self, content: str) -> List[Dict]:
         """Parse structured markdown with sections for each vulnerability"""
